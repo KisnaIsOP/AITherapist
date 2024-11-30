@@ -10,12 +10,26 @@ import hashlib
 import random
 import json
 from datetime import datetime, timedelta
+import urllib.parse
 
 load_dotenv()
 
+# Parse the database URL
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///nirya.db')
+# For Render PostgreSQL, modify the URL to use the full hostname
+if 'postgresql://' in DATABASE_URL:
+    parsed_url = urllib.parse.urlparse(DATABASE_URL)
+    if parsed_url.hostname and '.internal' not in parsed_url.hostname:
+        # Modify hostname to use internal Render network
+        new_hostname = parsed_url.hostname.replace('.oregon-postgres.render.com', '.internal')
+        DATABASE_URL = urllib.parse.urlunparse(
+            (parsed_url.scheme, new_hostname + ':' + str(parsed_url.port or 5432),
+             parsed_url.path, parsed_url.params, parsed_url.query, parsed_url.fragment)
+        )
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///nirya.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
