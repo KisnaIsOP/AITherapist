@@ -19,11 +19,9 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    manage_session=True,
-    async_mode='eventlet',
-    ping_timeout=60,
-    ping_interval=25,
-    max_http_buffer_size=1e8
+    async_mode=None,
+    logger=True,
+    engineio_logger=True
 )
 
 # Simplified User model for temporary tracking
