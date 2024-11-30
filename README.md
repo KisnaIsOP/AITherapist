@@ -1,76 +1,90 @@
-# Nirya - Your AI Mental Health Companion
+# Nirya AI Therapist 
 
-Nirya is an empathetic AI-powered mental health companion built with Flask and Google's Gemini AI. Named after the Sanskrit word for wisdom and guidance, Nirya provides a supportive space for emotional well-being and personal growth.
+A compassionate AI-powered mental health companion that provides emotional support and guidance.
+
+## Live Demo
+Visit [Nirya AI Therapist](https://aitherapist.onrender.com) to try it out!
 
 ## Features
 
-- 🤖 Empathetic AI conversations with personalized support
-- 📝 Personal journaling for self-reflection
-- 🙏 Gratitude practice tracking
-- ⏲️ Mindfulness timer for meditation
-- 💭 Emotion tracking and analysis
-- ⭐ User feedback system
-- 🔗 Mental health resources integration
+### Core Features
+- Advanced AI-powered conversations using Google's Gemini AI
+- Natural and empathetic responses
+- Personalized mental health guidance
+- Goal-setting and progress tracking
+- Emotion recognition and support
+- Real-time session analytics
 
-## Tech Stack
+### Admin Dashboard
+- Live session tracking
+- Real-time analytics
+- Interactive charts and visualizations
+- User engagement metrics
+- Emotion trend analysis
+- Mobile-responsive design
 
-- Backend: Flask (Python)
-- AI Model: Google's Gemini AI
-- Frontend: HTML, CSS, JavaScript
-- Database: SQLAlchemy
+## Technical Stack
+- **Backend**: Flask (Python)
+- **Frontend**: HTML, JavaScript, TailwindCSS
+- **AI Model**: Google Gemini AI
+- **Real-time Updates**: Socket.IO
+- **Charts**: Chart.js
+- **Deployment**: Render
 
-## Deployment on Render
+## Local Development
 
-### Prerequisites
-- Render account
-- GitHub repository with your Nirya project
-- Google Generative AI API key
+1. Clone the repository:
+```bash
+git clone https://github.com/KisnaIsOP/AITherapist.git
+cd AITherapist
+```
 
-### Steps to Deploy
+2. Create and activate a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-1. **Create a Web Service on Render**
-   - Go to Render Dashboard
-   - Click "New Web Service"
-   - Connect your GitHub repository
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-2. **Configure Environment Variables**
-   Set the following environment variables in Render:
-   - `FLASK_SECRET_KEY`: A secure random string
-   - `GOOGLE_API_KEY`: Your Google Generative AI API key
-   - `ADMIN_USERNAME`: Admin login username
-   - `ADMIN_PASSWORD_HASH`: SHA-256 hash of admin password
-   - `DATABASE_URL`: Render PostgreSQL database URL
+4. Create a `.env` file with required environment variables:
+```env
+GOOGLE_API_KEY=your_gemini_api_key
+FLASK_SECRET_KEY=your_secret_key
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD_HASH=your_password_hash
+```
 
-3. **Database Setup**
-   - Create a PostgreSQL database on Render
-   - Use the provided database URL in `DATABASE_URL`
+5. Run the development server:
+```bash
+python app.py
+```
 
-4. **Deployment Configuration**
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `gunicorn app:app`
+## Admin Access
+- URL: `/admin/login`
+- Default credentials:
+  - Username: admin
+  - Password: new_secure_admin_password_2024!
 
-### Local Development
-
-1. Clone the repository
-2. Create a virtual environment
-3. Install dependencies: `pip install -r requirements.txt`
-4. Set up `.env` file with required variables
-5. Run the application: `flask run`
-
-## Security and Privacy
-
-- No personally identifiable information is stored
-- Conversations are anonymized
-- Admin dashboard requires authentication
+## Security Features
+- Secure session management
+- Password hashing
+- Protected admin routes
+- No persistent user data storage
+- Real-time monitoring
 
 ## Contributing
-
-Contributions are welcome! Please read our contribution guidelines before submitting a pull request.
+Feel free to open issues or submit pull requests. All contributions are welcome!
 
 ## License
+MIT License
 
-This project is licensed under the MIT License.
+## Author
+[Krishna](https://github.com/KisnaIsOP)
 
-## Disclaimer
-
-Nirya is an AI companion and not a substitute for professional mental health treatment. Always seek help from a qualified healthcare professional for serious mental health concerns.
+## Acknowledgments
+- Google Gemini AI for powering the conversational intelligence
+- The open-source community for amazing tools and libraries
