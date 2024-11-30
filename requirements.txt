@@ -10,3 +10,5 @@ itsdangerous==2.1.2
 Jinja2==3.1.2
 click==8.1.7
 urllib3==1.26.15
+flask-socketio==5.3.6
+eventlet==0.33.3

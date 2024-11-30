@@ -8,11 +8,15 @@ import hashlib
 import random
 import json
 from datetime import datetime, timedelta
+from flask_socketio import SocketIO, emit
+from collections import defaultdict, Counter
 
 load_dotenv()
 
+# Initialize Flask and Socket.IO with proper configuration
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
+socketio = SocketIO(app, cors_allowed_origins="*", manage_session=False)
 
 # Simplified User model for temporary tracking
 class User:
@@ -51,14 +55,76 @@ def log_interaction(user, message, response, emotions=None):
     
     return interaction
 
-# Analytics Helper Functions
-def get_user_analytics():
-    return {
-        'total_users': 1,  # Always 1 in this model
-        'active_users': 1,
-        'common_emotions': {},
-        'average_feedback': 0
-    }
+# In-memory analytics storage
+class Analytics:
+    def __init__(self):
+        self.total_sessions = 0
+        self.active_sessions = set()
+        self.emotions = []
+        self.feedback_scores = []
+        self.conversation_lengths = []
+        self.hourly_usage = defaultdict(int)
+        self.daily_usage = defaultdict(int)
+        self.response_times = []
+        self.user_locations = Counter()
+        self.common_topics = Counter()
+        
+    def add_session(self, session_id):
+        self.total_sessions += 1
+        self.active_sessions.add(session_id)
+        self.update_usage_metrics()
+        self.broadcast_updates()
+    
+    def remove_session(self, session_id):
+        if session_id in self.active_sessions:
+            self.active_sessions.remove(session_id)
+        self.broadcast_updates()
+    
+    def add_emotion(self, emotion):
+        self.emotions.append(emotion)
+        self.broadcast_updates()
+    
+    def add_feedback(self, score):
+        self.feedback_scores.append(score)
+        self.broadcast_updates()
+    
+    def add_conversation_length(self, length):
+        self.conversation_lengths.append(length)
+        self.broadcast_updates()
+    
+    def add_response_time(self, time):
+        self.response_times.append(time)
+        self.broadcast_updates()
+    
+    def add_topic(self, topic):
+        self.common_topics[topic] += 1
+        self.broadcast_updates()
+    
+    def update_usage_metrics(self):
+        current_hour = datetime.now().strftime('%H:00')
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        self.hourly_usage[current_hour] += 1
+        self.daily_usage[current_date] += 1
+    
+    def get_analytics_data(self):
+        return {
+            'total_sessions': self.total_sessions,
+            'active_sessions': len(self.active_sessions),
+            'common_emotions': dict(Counter(self.emotions).most_common(5)),
+            'average_feedback': sum(self.feedback_scores) / len(self.feedback_scores) if self.feedback_scores else 0,
+            'avg_conversation_length': sum(self.conversation_lengths) / len(self.conversation_lengths) if self.conversation_lengths else 0,
+            'hourly_usage': dict(self.hourly_usage),
+            'daily_usage': dict(self.daily_usage),
+            'avg_response_time': sum(self.response_times) / len(self.response_times) if self.response_times else 0,
+            'top_locations': dict(self.user_locations.most_common(5)),
+            'common_topics': dict(self.common_topics.most_common(10))
+        }
+    
+    def broadcast_updates(self):
+        socketio.emit('analytics_update', self.get_analytics_data(), namespace='/admin')
+
+# Initialize analytics
+analytics = Analytics()
 
 # Configure Gemini AI
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -358,45 +424,66 @@ def home():
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    user_message = request.json.get('message', '')
-    
-    if not user_message:
-        return jsonify({'error': 'Empty message'}), 400
+    try:
+        data = request.get_json()
+        user_message = data.get('message', '')
+        session_id = session.get('session_id')
 
-    # Get or create user
-    user = get_or_create_user()
-    
-    # Get conversation history
-    conversation_history = session.get('conversation_history', [])
-    history_text = "\n".join([f"{'User' if i%2==0 else 'Nirya'}: {msg}" 
-                             for i, msg in enumerate(conversation_history)])
+        # Track conversation start time
+        if 'conversation_start' not in session:
+            session['conversation_start'] = datetime.now().isoformat()
+            session['message_count'] = 0
 
-    # Get AI response
-    ai_response = get_ai_response(user_message, history_text)
+        # Increment message count
+        session['message_count'] = session.get('message_count', 0) + 1
 
-    # Log interaction and emotions
-    current_emotions = analyze_emotion(user_message)
-    interaction = log_interaction(user, user_message, ai_response, current_emotions)
+        # Basic emotion detection
+        emotions = ['happy', 'sad', 'angry', 'anxious', 'grateful', 'confused', 'hopeful', 'frustrated']
+        detected_emotion = next((emotion for emotion in emotions if emotion in user_message.lower()), None)
+        if detected_emotion:
+            analytics.add_emotion(detected_emotion)
 
-    # Update conversation history
-    conversation_history.extend([user_message, ai_response])
-    session['conversation_history'] = conversation_history[-10:]
+        # Topic detection (simplified)
+        topics = ['work', 'family', 'health', 'relationships', 'stress', 'depression', 'anxiety', 
+                 'self-improvement', 'goals', 'sleep', 'meditation', 'exercise']
+        detected_topics = [topic for topic in topics if topic in user_message.lower()]
+        for topic in detected_topics:
+            analytics.add_topic(topic)
 
-    return jsonify({
-        'response': ai_response,
-        'timestamp': datetime.now().strftime("%H:%M"),
-        'interaction_id': interaction
-    })
+        # Get AI response
+        response = get_ai_response(user_message, session_id)
+
+        # Track conversation length if conversation ends
+        if 'goodbye' in user_message.lower() or 'bye' in user_message.lower():
+            if 'conversation_start' in session:
+                start_time = datetime.fromisoformat(session['conversation_start'])
+                end_time = datetime.now()
+                duration = (end_time - start_time).total_seconds() / 60  # Convert to minutes
+                analytics.add_conversation_length(duration)
+                session.pop('conversation_start', None)
+                session.pop('message_count', None)
+
+        return jsonify({'response': response})
+
+    except Exception as e:
+        print(f"Error in chat endpoint: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/feedback', methods=['POST'])
 def feedback():
-    feedback_data = request.json
-    if 'user_id' in session:
-        interaction_id = feedback_data.get('interaction_id')
-        if interaction_id:
-            # No database to update, ignore feedback
-            pass
-    return jsonify({'status': 'success'})
+    try:
+        data = request.get_json()
+        rating = data.get('rating')
+        
+        if rating is not None:
+            analytics.add_feedback(float(rating))
+            return jsonify({'status': 'success'})
+        
+        return jsonify({'error': 'Invalid rating'}), 400
+
+    except Exception as e:
+        print(f"Error in feedback endpoint: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/journal', methods=['POST'])
 def save_journal():
@@ -420,8 +507,29 @@ def save_gratitude():
 @app.route('/admin/analytics')
 @admin_required
 def admin_analytics():
-    analytics = get_user_analytics()
-    return render_template('admin/analytics.html', analytics=analytics)
+    initial_data = analytics.get_analytics_data()
+    return render_template('admin/analytics.html', initial_data=initial_data)
+
+# WebSocket events
+@socketio.on('connect', namespace='/admin')
+def handle_admin_connect():
+    if not session.get('admin_logged_in'):
+        return False  # Reject connection if not logged in
+    emit('analytics_update', analytics.get_analytics_data())
+
+@app.before_request
+def track_analytics():
+    if request.endpoint != 'static':
+        session_id = session.get('session_id')
+        if session_id:
+            analytics.add_session(session_id)
+
+@app.after_request
+def after_request(response):
+    start_time = getattr(request, 'start_time', datetime.now())
+    response_time = (datetime.now() - start_time).total_seconds()
+    analytics.add_response_time(response_time)
+    return response
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)
