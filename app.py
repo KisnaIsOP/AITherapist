@@ -20,20 +20,18 @@ def get_database_url():
     # Get the DATABASE_URL from environment variable
     database_url = os.getenv('DATABASE_URL', 'sqlite:///default.db')
     
-    # If it's a PostgreSQL URL, parse and modify it for internal networking
+    # Log the original database URL for debugging
+    print(f"Original Database URL: {database_url}")
+    
+    # If it's a PostgreSQL URL, parse and potentially modify it
     if database_url.startswith('postgresql://'):
         parsed_url = urllib.parse.urlparse(database_url)
         
-        # Extract components
-        username = parsed_url.username
-        password = parsed_url.password
-        original_hostname = parsed_url.hostname
-        path = parsed_url.path
-        
-        # Construct internal network connection string
-        # Use the original hostname, which should be the internal Render hostname
-        internal_url = f"postgresql://{username}:{password}@{original_hostname}{path}"
-        return internal_url
+        # Log parsed URL components for debugging
+        print(f"Parsed URL Components:")
+        print(f"Hostname: {parsed_url.hostname}")
+        print(f"Username: {parsed_url.username}")
+        print(f"Path: {parsed_url.path}")
     
     return database_url
 
@@ -41,6 +39,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
 app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,  # Test connection before using
+    'pool_recycle': 3600,   # Recycle connections every hour
+}
 
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
