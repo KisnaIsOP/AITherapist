@@ -1,16 +1,16 @@
-# Mindful Chat - AI Therapist
+# Nirya - Your AI Mental Health Companion
 
-A supportive and empathetic AI-powered mental health chat application built with Flask and Google's Gemini AI.
+Nirya is an empathetic AI-powered mental health companion built with Flask and Google's Gemini AI. Named after the Sanskrit word for wisdom and guidance, Nirya provides a supportive space for emotional well-being and personal growth.
 
 ## Features
 
-- 🤖 AI-powered empathetic conversations
-- 📝 Personal journaling section
-- 🙏 Gratitude list tracking
-- ⏲️ Mindfulness timer
+- 🤖 Empathetic AI conversations with personalized support
+- 📝 Personal journaling for self-reflection
+- 🙏 Gratitude practice tracking
+- ⏲️ Mindfulness timer for meditation
 - 💭 Emotion tracking and analysis
 - ⭐ User feedback system
-- 🔗 Support resources integration
+- 🔗 Mental health resources integration
 
 ## Tech Stack
 
@@ -19,36 +19,58 @@ A supportive and empathetic AI-powered mental health chat application built with
 - Frontend: HTML, CSS, JavaScript
 - Database: SQLAlchemy
 
-## Setup
+## Deployment on Render
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/mindful-chat.git
-cd mindful-chat
-```
+### Prerequisites
+- Render account
+- GitHub repository with your Nirya project
+- Google Generative AI API key
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+### Steps to Deploy
 
-3. Create a .env file with your API keys:
-```
-GOOGLE_API_KEY=your_gemini_api_key
-FLASK_SECRET_KEY=your_secret_key
-```
+1. **Create a Web Service on Render**
+   - Go to Render Dashboard
+   - Click "New Web Service"
+   - Connect your GitHub repository
 
-4. Run the application:
-```bash
-python -m flask run
-```
+2. **Configure Environment Variables**
+   Set the following environment variables in Render:
+   - `FLASK_SECRET_KEY`: A secure random string
+   - `GOOGLE_API_KEY`: Your Google Generative AI API key
+   - `ADMIN_USERNAME`: Admin login username
+   - `ADMIN_PASSWORD_HASH`: SHA-256 hash of admin password
+   - `DATABASE_URL`: Render PostgreSQL database URL
 
-5. Open http://127.0.0.1:5000 in your browser
+3. **Database Setup**
+   - Create a PostgreSQL database on Render
+   - Use the provided database URL in `DATABASE_URL`
+
+4. **Deployment Configuration**
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn app:app`
+
+### Local Development
+
+1. Clone the repository
+2. Create a virtual environment
+3. Install dependencies: `pip install -r requirements.txt`
+4. Set up `.env` file with required variables
+5. Run the application: `flask run`
+
+## Security and Privacy
+
+- No personally identifiable information is stored
+- Conversations are anonymized
+- Admin dashboard requires authentication
 
 ## Contributing
 
-Feel free to open issues and pull requests for any improvements!
+Contributions are welcome! Please read our contribution guidelines before submitting a pull request.
 
 ## License
 
-MIT License - feel free to use this project for learning and development!
+This project is licensed under the MIT License.
+
+## Disclaimer
+
+Nirya is an AI companion and not a substitute for professional mental health treatment. Always seek help from a qualified healthcare professional for serious mental health concerns.

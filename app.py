@@ -1,13 +1,117 @@
-from flask import Flask, render_template, request, jsonify, session
-import google.generativeai as genai
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import google.generativeai as genai
 import os
 from dotenv import load_dotenv
+import json
+from datetime import datetime, timedelta
+from functools import wraps
+import hashlib
 import random
 
-app = Flask(__name__)
-app.secret_key = os.urandom(24)
 load_dotenv()
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///nirya.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# Database Models
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(100), unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_active = db.Column(db.DateTime, default=datetime.utcnow)
+    interactions = db.relationship('Interaction', backref='user', lazy=True)
+    emotions = db.relationship('EmotionRecord', backref='user', lazy=True)
+
+class Interaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    message = db.Column(db.Text)
+    response = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    feedback_score = db.Column(db.Integer, nullable=True)
+    feedback_text = db.Column(db.Text, nullable=True)
+
+class EmotionRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    emotions = db.Column(db.String(200))  # Stored as JSON string
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class JournalEntry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    content = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class GratitudeEntry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    content = db.Column(db.Text)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Analytics Helper Functions
+def get_or_create_user():
+    if 'user_id' not in session:
+        user = User(session_id=os.urandom(24).hex())
+        db.session.add(user)
+        db.session.commit()
+        session['user_id'] = user.id
+    else:
+        user = User.query.get(session['user_id'])
+        user.last_active = datetime.utcnow()
+        db.session.commit()
+    return user
+
+def log_interaction(user, message, response, emotions=None):
+    # Log the interaction
+    interaction = Interaction(
+        user_id=user.id,
+        message=message,
+        response=response
+    )
+    db.session.add(interaction)
+    
+    # Log emotions if present
+    if emotions:
+        emotion_record = EmotionRecord(
+            user_id=user.id,
+            emotions=json.dumps(emotions)
+        )
+        db.session.add(emotion_record)
+    
+    db.session.commit()
+    return interaction
+
+def get_user_analytics():
+    total_users = User.query.count()
+    active_users = User.query.filter(
+        User.last_active >= datetime.utcnow() - timedelta(days=7)
+    ).count()
+    
+    # Get common emotions
+    emotions = EmotionRecord.query.all()
+    emotion_counts = {}
+    for record in emotions:
+        for emotion in json.loads(record.emotions):
+            emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+    
+    # Get average feedback score
+    avg_score = db.session.query(db.func.avg(Interaction.feedback_score))\
+        .filter(Interaction.feedback_score.isnot(None))\
+        .scalar()
+    
+    return {
+        'total_users': total_users,
+        'active_users': active_users,
+        'common_emotions': emotion_counts,
+        'average_feedback': round(avg_score, 2) if avg_score else 0
+    }
 
 # Configure Gemini AI
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -227,60 +331,74 @@ def get_ai_response(user_input, conversation_history):
         # Initialize or get user session
         if 'user_session' not in session:
             session['user_session'] = UserSession().to_dict()
-        user_session_data = session['user_session']
-        user_session = UserSession()
-        user_session.metrics.conversation_length = user_session_data['metrics']['conversation_length']
-        user_session.metrics.emotional_patterns = user_session_data['metrics']['emotional_patterns']
-        user_session.metrics.feedback_scores = user_session_data['metrics']['feedback_scores']
-        user_session.metrics.recurring_themes = set(user_session_data['metrics']['recurring_themes'])
-        user_session.metrics.session_duration = user_session_data['metrics']['session_duration']
-        user_session.metrics.helpful_responses = user_session_data['metrics']['helpful_responses']
-        user_session.current_emotions = user_session_data['current_emotions']
-        user_session.themes_discussed = set(user_session_data['themes_discussed'])
-        user_session.last_topics = user_session_data['last_topics']
-        user_session.gratitude_entries = user_session_data['gratitude_entries']
-        user_session.journal_entries = user_session_data['journal_entries']
 
-        # Analyze emotions and update metrics
-        current_emotions = analyze_emotion(user_input)
-        user_session.current_emotions = current_emotions
-        user_session.metrics.conversation_length += 1
-
-        # Track emotional patterns
-        for emotion in current_emotions:
-            user_session.metrics.emotional_patterns[emotion] = user_session.metrics.emotional_patterns.get(emotion, 0) + 1
-
-        # Determine if we should offer a micro-challenge
-        should_offer_challenge = user_session.metrics.conversation_length % 3 == 0
-        micro_challenge = suggest_micro_challenge(current_emotions, user_session.themes_discussed) if should_offer_challenge else None
-
-        # Enhanced prompt with emotional awareness and context
-        prompt = f"{THERAPEUTIC_CONTEXT}\n\n"
-        prompt += f"Current emotional state: {', '.join(current_emotions) if current_emotions else 'neutral'}\n"
-        prompt += f"Conversation history:\n{conversation_history}\n\n"
-        prompt += f"User: {user_input}\n\n"
+        # Create the prompt with Nirya's persona
+        prompt = f"""You are Nirya, an empathetic AI mental health companion. Your name comes from Sanskrit, meaning wisdom and guidance. 
+        You provide supportive, understanding responses while maintaining appropriate boundaries. You're warm, gentle, and focused on emotional well-being.
         
-        if micro_challenge:
-            prompt += f"Consider suggesting this micro-challenge: {micro_challenge}\n\n"
+        Previous conversation:
+        {conversation_history}
         
-        prompt += "Respond with empathy, using the following approach:\n"
-        prompt += "1. Acknowledge and validate their feelings\n"
-        prompt += "2. Paraphrase their message to show understanding\n"
-        prompt += "3. Ask a relevant follow-up question\n"
-        prompt += "4. If appropriate, suggest the micro-challenge\n\n"
-        prompt += "Therapist:"
+        User's message: {user_input}
+        
+        Respond as Nirya, keeping in mind:
+        1. Be empathetic and validate emotions
+        2. Use a warm, supportive tone
+        3. Ask thoughtful follow-up questions
+        4. Suggest gentle reflections when appropriate
+        5. Never give medical advice
+        6. Maintain professional boundaries
+        
+        Nirya's response:"""
 
         response = model.generate_content(prompt)
         
         # Update session metrics
         if any(phrase in response.text.lower() for phrase in ['thank you', 'helps', 'helpful']):
+            user_session_data = session['user_session']
+            user_session = UserSession()
+            user_session.metrics = user_session_data['metrics']
             user_session.metrics.helpful_responses += 1
-        
-        session['user_session'] = user_session.to_dict()
+            session['user_session'] = user_session.to_dict()
         return response.text
 
     except Exception as e:
         return "I want to make sure I understand what you're sharing. Could you tell me more about that?"
+
+# Admin authentication
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        # Hash the password for comparison
+        hashed_password = hashlib.sha256(password.encode()).hexdigest()
+        
+        # Get admin credentials from environment variables
+        admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+        admin_password = os.getenv('ADMIN_PASSWORD_HASH')  # Store the hash in .env
+        
+        if username == admin_username and hashed_password == admin_password:
+            session['admin_logged_in'] = True
+            return redirect(url_for('admin_analytics'))
+        else:
+            return render_template('admin/login.html', error="Invalid credentials")
+    
+    return render_template('admin/login.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('admin_login'))
 
 @app.route('/')
 def home():
@@ -298,39 +416,76 @@ def chat():
     if not user_message:
         return jsonify({'error': 'Empty message'}), 400
 
+    # Get or create user
+    user = get_or_create_user()
+    
     # Get conversation history
     conversation_history = session.get('conversation_history', [])
-    history_text = "\n".join([f"{'User' if i%2==0 else 'Therapist'}: {msg}" 
+    history_text = "\n".join([f"{'User' if i%2==0 else 'Nirya'}: {msg}" 
                              for i, msg in enumerate(conversation_history)])
 
     # Get AI response
     ai_response = get_ai_response(user_message, history_text)
 
+    # Log interaction and emotions
+    current_emotions = analyze_emotion(user_message)
+    interaction = log_interaction(user, user_message, ai_response, current_emotions)
+
     # Update conversation history
     conversation_history.extend([user_message, ai_response])
-    session['conversation_history'] = conversation_history[-10:]  # Keep last 10 messages
-
-    # Get session metrics
-    user_session = session.get('user_session')
-    metrics = user_session['metrics'] if user_session else {}
+    session['conversation_history'] = conversation_history[-10:]
 
     return jsonify({
         'response': ai_response,
         'timestamp': datetime.now().strftime("%H:%M"),
-        'metrics': metrics
+        'interaction_id': interaction.id
     })
 
 @app.route('/feedback', methods=['POST'])
 def feedback():
-    """Endpoint for collecting user feedback"""
     feedback_data = request.json
-    if 'user_session' in session:
-        user_session_data = session['user_session']
-        user_session = UserSession()
-        user_session.metrics.feedback_scores = user_session_data['metrics']['feedback_scores']
-        user_session.metrics.feedback_scores.append(feedback_data.get('score'))
-        session['user_session'] = user_session.to_dict()
+    if 'user_id' in session:
+        interaction_id = feedback_data.get('interaction_id')
+        if interaction_id:
+            interaction = Interaction.query.get(interaction_id)
+            if interaction:
+                interaction.feedback_score = feedback_data.get('score')
+                interaction.feedback_text = feedback_data.get('feedback')
+                db.session.commit()
     return jsonify({'status': 'success'})
+
+@app.route('/journal', methods=['POST'])
+def save_journal():
+    if 'user_id' in session:
+        content = request.json.get('content')
+        if content:
+            entry = JournalEntry(
+                user_id=session['user_id'],
+                content=content
+            )
+            db.session.add(entry)
+            db.session.commit()
+    return jsonify({'status': 'success'})
+
+@app.route('/gratitude', methods=['POST'])
+def save_gratitude():
+    if 'user_id' in session:
+        content = request.json.get('content')
+        if content:
+            entry = GratitudeEntry(
+                user_id=session['user_id'],
+                content=content
+            )
+            db.session.add(entry)
+            db.session.commit()
+    return jsonify({'status': 'success'})
+
+# Admin dashboard route (protected)
+@app.route('/admin/analytics')
+@admin_required
+def admin_analytics():
+    analytics = get_user_analytics()
+    return render_template('admin/analytics.html', analytics=analytics)
 
 if __name__ == '__main__':
     app.run(debug=True)
