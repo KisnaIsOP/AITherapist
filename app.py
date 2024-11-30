@@ -1,14 +1,15 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from datetime import datetime
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
-import json
-from datetime import datetime, timedelta
 from functools import wraps
 import hashlib
 import random
+import json
+from datetime import datetime, timedelta
 
 load_dotenv()
 
@@ -18,6 +19,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///nir
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # Database Models
 class User(db.Model):

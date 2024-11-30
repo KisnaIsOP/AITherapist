@@ -1,0 +1,9 @@
+Database migrations for Nirya AI Therapist
+
+This directory contains SQLAlchemy database migration scripts managed by Flask-Migrate.
+
+To create a new migration:
+flask db migrate -m "Description of changes"
+
+To apply migrations:
+flask db upgrade
