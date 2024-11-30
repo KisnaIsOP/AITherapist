@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from datetime import datetime
 import google.generativeai as genai
 import os
+import urllib.parse
 from dotenv import load_dotenv
 from functools import wraps
 import hashlib
@@ -14,22 +15,29 @@ import urllib.parse
 
 load_dotenv()
 
-# Parse the database URL
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///nirya.db')
-# For Render PostgreSQL, modify the URL to use the full hostname
-if 'postgresql://' in DATABASE_URL:
-    parsed_url = urllib.parse.urlparse(DATABASE_URL)
-    if parsed_url.hostname and '.internal' not in parsed_url.hostname:
-        # Modify hostname to use internal Render network
-        new_hostname = parsed_url.hostname.replace('.oregon-postgres.render.com', '.internal')
-        DATABASE_URL = urllib.parse.urlunparse(
-            (parsed_url.scheme, new_hostname + ':' + str(parsed_url.port or 5432),
-             parsed_url.path, parsed_url.params, parsed_url.query, parsed_url.fragment)
-        )
+# Modify database connection configuration
+def get_database_url():
+    # Get the DATABASE_URL from environment variable
+    database_url = os.getenv('DATABASE_URL', 'sqlite:///default.db')
+    
+    # If it's a PostgreSQL URL, parse and modify it for internal networking
+    if database_url.startswith('postgresql://'):
+        parsed_url = urllib.parse.urlparse(database_url)
+        
+        # Extract components
+        username = parsed_url.username
+        password = parsed_url.password
+        path = parsed_url.path
+        
+        # Construct internal network connection string
+        internal_url = f"postgresql://{username}:{password}@localhost{path}"
+        return internal_url
+    
+    return database_url
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
