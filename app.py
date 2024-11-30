@@ -9,7 +9,6 @@ import random
 import json
 from datetime import datetime, timedelta
 from flask_socketio import SocketIO, emit
-from collections import defaultdict, Counter
 
 load_dotenv()
 
@@ -23,6 +22,9 @@ socketio = SocketIO(
     logger=True,
     engineio_logger=True
 )
+
+# Store chat history in memory
+chat_history = []
 
 # Simplified User model for temporary tracking
 class User:
@@ -60,77 +62,6 @@ def log_interaction(user, message, response, emotions=None):
         })
     
     return interaction
-
-# In-memory analytics storage
-class Analytics:
-    def __init__(self):
-        self.total_sessions = 0
-        self.active_sessions = set()
-        self.emotions = []
-        self.feedback_scores = []
-        self.conversation_lengths = []
-        self.hourly_usage = defaultdict(int)
-        self.daily_usage = defaultdict(int)
-        self.response_times = []
-        self.user_locations = Counter()
-        self.common_topics = Counter()
-        
-    def add_session(self, session_id):
-        self.total_sessions += 1
-        self.active_sessions.add(session_id)
-        self.update_usage_metrics()
-        self.broadcast_updates()
-    
-    def remove_session(self, session_id):
-        if session_id in self.active_sessions:
-            self.active_sessions.remove(session_id)
-        self.broadcast_updates()
-    
-    def add_emotion(self, emotion):
-        self.emotions.append(emotion)
-        self.broadcast_updates()
-    
-    def add_feedback(self, score):
-        self.feedback_scores.append(score)
-        self.broadcast_updates()
-    
-    def add_conversation_length(self, length):
-        self.conversation_lengths.append(length)
-        self.broadcast_updates()
-    
-    def add_response_time(self, time):
-        self.response_times.append(time)
-        self.broadcast_updates()
-    
-    def add_topic(self, topic):
-        self.common_topics[topic] += 1
-        self.broadcast_updates()
-    
-    def update_usage_metrics(self):
-        current_hour = datetime.now().strftime('%H:00')
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        self.hourly_usage[current_hour] += 1
-        self.daily_usage[current_date] += 1
-    
-    def get_analytics_data(self):
-        return {
-            'total_sessions': self.total_sessions,
-            'active_sessions': len(self.active_sessions),
-            'common_emotions': dict(Counter(self.emotions).most_common(5)),
-            'average_feedback': sum(self.feedback_scores) / len(self.feedback_scores) if self.feedback_scores else 0,
-            'avg_conversation_length': sum(self.conversation_lengths) / len(self.conversation_lengths) if self.conversation_lengths else 0,
-            'hourly_usage': dict(self.hourly_usage),
-            'daily_usage': dict(self.daily_usage),
-            'avg_response_time': sum(self.response_times) / len(self.response_times) if self.response_times else 0,
-            'top_locations': dict(self.user_locations.most_common(5)),
-            'common_topics': dict(self.common_topics.most_common(10))
-        }
-    
-    def broadcast_updates(self):
-        socketio.emit('analytics_update', self.get_analytics_data(), namespace='/admin')
-
-# Initialize analytics
-analytics = Analytics()
 
 # Configure Gemini AI
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
@@ -228,128 +159,11 @@ ENGAGEMENT_QUESTIONS = {
     ]
 }
 
-# Add tracking for engagement metrics and emotional patterns
-class ConversationMetrics:
-    def __init__(self):
-        self.conversation_length = 0
-        self.emotional_patterns = {}
-        self.feedback_scores = []
-        self.recurring_themes = set()
-        self.session_duration = 0
-        self.helpful_responses = 0
-
-    def to_dict(self):
-        return {
-            'conversation_length': self.conversation_length,
-            'emotional_patterns': self.emotional_patterns,
-            'feedback_scores': self.feedback_scores,
-            'recurring_themes': list(self.recurring_themes),
-            'session_duration': self.session_duration,
-            'helpful_responses': self.helpful_responses
-        }
-
-class UserSession:
-    def __init__(self):
-        self.metrics = ConversationMetrics()
-        self.current_emotions = []
-        self.themes_discussed = set()
-        self.last_topics = []
-        self.gratitude_entries = []
-        self.journal_entries = []
-
-    def to_dict(self):
-        return {
-            'metrics': self.metrics.to_dict(),
-            'current_emotions': self.current_emotions,
-            'themes_discussed': list(self.themes_discussed),
-            'last_topics': self.last_topics,
-            'gratitude_entries': self.gratitude_entries,
-            'journal_entries': self.journal_entries
-        }
-
-# Micro-challenges and reflection prompts
-MICRO_CHALLENGES = {
-    'gratitude': [
-        "What are 3 things, big or small, that you're grateful for today?",
-        "Can you think of one person who's made a positive impact on your life recently?",
-        "What's one small win you've had today that's worth celebrating?"
-    ],
-    'reflection': [
-        "Take a moment to write down what's overwhelming you right now.",
-        "What's one small step you could take today toward your goal?",
-        "If you could change one thing about your current situation, what would it be?"
-    ],
-    'mindfulness': [
-        "Let's try a quick breathing exercise together.",
-        "Take 30 seconds to notice three things you can see, hear, and feel.",
-        "What's one thing you can do right now to feel more grounded?"
-    ]
-}
-
-# Test personas for response calibration
-TEST_PERSONAS = {
-    'stressed_student': {
-        'context': "Struggling with exam pressure and time management",
-        'common_themes': ['academic stress', 'time management', 'future anxiety'],
-        'sample_queries': [
-            "I have three exams next week and I'm freaking out",
-            "I can't focus on studying anymore",
-            "What if I fail my classes?"
-        ]
-    },
-    'lonely_adult': {
-        'context': "Dealing with isolation and low self-confidence",
-        'common_themes': ['loneliness', 'self-doubt', 'social anxiety'],
-        'sample_queries': [
-            "I feel like I have no real friends",
-            "It's hard to connect with people",
-            "I'm always afraid of saying the wrong thing"
-        ]
-    },
-    'goal_seeker': {
-        'context': "Feeling stuck in personal/professional growth",
-        'common_themes': ['career uncertainty', 'motivation', 'self-improvement'],
-        'sample_queries': [
-            "I don't know what I want to do with my life",
-            "I feel stuck in my career",
-            "How do I stay motivated?"
-        ]
-    }
-}
-
-def analyze_emotion(text):
-    """Analyze emotional content of user messages"""
-    emotions = {
-        'anxiety': ['worried', 'anxious', 'stressed', 'nervous', 'panic'],
-        'sadness': ['sad', 'down', 'depressed', 'lonely', 'hopeless'],
-        'frustration': ['frustrated', 'angry', 'annoyed', 'upset', 'mad'],
-        'hope': ['hopeful', 'excited', 'looking forward', 'better', 'improving'],
-        'confusion': ['confused', 'unsure', 'lost', 'don\'t know', 'uncertain']
-    }
-    
-    detected_emotions = []
-    text_lower = text.lower()
-    
-    for emotion, keywords in emotions.items():
-        if any(keyword in text_lower for keyword in keywords):
-            detected_emotions.append(emotion)
-    
-    return detected_emotions
-
-def suggest_micro_challenge(emotions, themes):
-    """Suggest appropriate micro-challenge based on emotional state and conversation themes"""
-    if 'anxiety' in emotions:
-        return random.choice(MICRO_CHALLENGES['mindfulness'])
-    elif 'sadness' in emotions:
-        return random.choice(MICRO_CHALLENGES['gratitude'])
-    else:
-        return random.choice(MICRO_CHALLENGES['reflection'])
-
 def get_ai_response(user_input, conversation_history):
     try:
         # Initialize or get user session
         if 'user_session' not in session:
-            session['user_session'] = UserSession().to_dict()
+            session['user_session'] = {}
 
         # Create the prompt with Nirya's persona
         prompt = f"""You are Nirya, an empathetic AI mental health companion. Your name comes from Sanskrit, meaning wisdom and guidance. 
@@ -372,13 +186,6 @@ def get_ai_response(user_input, conversation_history):
 
         response = model.generate_content(prompt)
         
-        # Update session metrics
-        if any(phrase in response.text.lower() for phrase in ['thank you', 'helps', 'helpful']):
-            user_session_data = session['user_session']
-            user_session = UserSession()
-            user_session.metrics = user_session_data['metrics']
-            user_session.metrics.helpful_responses += 1
-            session['user_session'] = user_session.to_dict()
         return response.text
 
     except Exception as e:
@@ -423,8 +230,6 @@ def admin_logout():
 def home():
     if 'conversation_history' not in session:
         session['conversation_history'] = []
-        user_session = UserSession()
-        session['user_session'] = user_session.to_dict()
         return render_template('index.html', initial_question=random.choice(ENGAGEMENT_QUESTIONS['initial']))
     return render_template('index.html')
 
@@ -435,107 +240,40 @@ def chat():
         user_message = data.get('message', '')
         session_id = session.get('session_id')
 
-        # Track conversation start time
-        if 'conversation_start' not in session:
-            session['conversation_start'] = datetime.now().isoformat()
-            session['message_count'] = 0
-
-        # Increment message count
-        session['message_count'] = session.get('message_count', 0) + 1
-
-        # Basic emotion detection
-        emotions = ['happy', 'sad', 'angry', 'anxious', 'grateful', 'confused', 'hopeful', 'frustrated']
-        detected_emotion = next((emotion for emotion in emotions if emotion in user_message.lower()), None)
-        if detected_emotion:
-            analytics.add_emotion(detected_emotion)
-
-        # Topic detection (simplified)
-        topics = ['work', 'family', 'health', 'relationships', 'stress', 'depression', 'anxiety', 
-                 'self-improvement', 'goals', 'sleep', 'meditation', 'exercise']
-        detected_topics = [topic for topic in topics if topic in user_message.lower()]
-        for topic in detected_topics:
-            analytics.add_topic(topic)
-
         # Get AI response
         response = get_ai_response(user_message, session_id)
-
-        # Track conversation length if conversation ends
-        if 'goodbye' in user_message.lower() or 'bye' in user_message.lower():
-            if 'conversation_start' in session:
-                start_time = datetime.fromisoformat(session['conversation_start'])
-                end_time = datetime.now()
-                duration = (end_time - start_time).total_seconds() / 60  # Convert to minutes
-                analytics.add_conversation_length(duration)
-                session.pop('conversation_start', None)
-                session.pop('message_count', None)
-
+        
+        # Create chat entry
+        chat_entry = {
+            'session_id': session_id,
+            'message': user_message,
+            'response': response,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Add to chat history
+        chat_history.append(chat_entry)
+        
+        # Emit to admin panel
+        socketio.emit('new_chat', chat_entry, namespace='/admin')
+        
         return jsonify({'response': response})
 
     except Exception as e:
         print(f"Error in chat endpoint: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/feedback', methods=['POST'])
-def feedback():
-    try:
-        data = request.get_json()
-        rating = data.get('rating')
-        
-        if rating is not None:
-            analytics.add_feedback(float(rating))
-            return jsonify({'status': 'success'})
-        
-        return jsonify({'error': 'Invalid rating'}), 400
-
-    except Exception as e:
-        print(f"Error in feedback endpoint: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/journal', methods=['POST'])
-def save_journal():
-    if 'user_id' in session:
-        content = request.json.get('content')
-        if content:
-            # No database to store journal entries, ignore
-            pass
-    return jsonify({'status': 'success'})
-
-@app.route('/gratitude', methods=['POST'])
-def save_gratitude():
-    if 'user_id' in session:
-        content = request.json.get('content')
-        if content:
-            # No database to store gratitude entries, ignore
-            pass
-    return jsonify({'status': 'success'})
-
-# Admin dashboard route (protected)
 @app.route('/admin/analytics')
 @admin_required
 def admin_analytics():
-    initial_data = analytics.get_analytics_data()
-    return render_template('admin/analytics.html', initial_data=initial_data)
+    return render_template('admin/analytics.html', chat_history=chat_history)
 
 # WebSocket events
 @socketio.on('connect', namespace='/admin')
 def handle_admin_connect():
     if not session.get('admin_logged_in'):
-        return False  # Reject connection if not logged in
-    emit('analytics_update', analytics.get_analytics_data())
-
-@app.before_request
-def track_analytics():
-    if request.endpoint != 'static':
-        session_id = session.get('session_id')
-        if session_id:
-            analytics.add_session(session_id)
-
-@app.after_request
-def after_request(response):
-    start_time = getattr(request, 'start_time', datetime.now())
-    response_time = (datetime.now() - start_time).total_seconds()
-    analytics.add_response_time(response_time)
-    return response
+        return False
+    emit('chat_history', chat_history)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

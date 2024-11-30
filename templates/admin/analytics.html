@@ -5,60 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nirya Admin Dashboard</title>
     <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold mb-8">Nirya Admin Dashboard</h1>
+        <h1 class="text-3xl font-bold mb-8 text-center">Nirya Admin Dashboard</h1>
         
-        <!-- Real-time Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-2">Total Sessions</h3>
-                <p id="total-sessions" class="text-3xl font-bold text-blue-600">0</p>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-2">Active Sessions</h3>
-                <p id="active-sessions" class="text-3xl font-bold text-green-600">0</p>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-2">Avg. Feedback Score</h3>
-                <p id="avg-feedback" class="text-3xl font-bold text-purple-600">0</p>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-2">Avg. Response Time</h3>
-                <p id="avg-response-time" class="text-3xl font-bold text-orange-600">0s</p>
+        <!-- Live Chats -->
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4 text-indigo-600">Live Chats</h2>
+            <div id="live-chats" class="space-y-4">
+                <!-- Live chats will be inserted here -->
             </div>
         </div>
 
-        <!-- Charts -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-4">Hourly Usage</h3>
-                <canvas id="hourly-chart"></canvas>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-4">Daily Usage</h3>
-                <canvas id="daily-chart"></canvas>
-            </div>
-        </div>
-
-        <!-- Emotion and Topics -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-4">Common Emotions</h3>
-                <canvas id="emotions-chart"></canvas>
-            </div>
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-semibold mb-4">Popular Topics</h3>
-                <canvas id="topics-chart"></canvas>
+        <!-- Previous Chats -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4 text-indigo-600">Previous Chats</h2>
+            <div id="previous-chats" class="space-y-4">
+                <!-- Previous chats will be inserted here -->
             </div>
         </div>
     </div>
 
     <script>
-        // Initialize Socket.IO with simpler configuration
         const socket = io('/admin', {
             transports: ['polling'],
             upgrade: false,
@@ -66,145 +36,59 @@
             reconnectionAttempts: 5
         });
 
-        // Chart instances
-        let hourlyChart, dailyChart, emotionsChart, topicsChart;
-
-        // Update dashboard with new data
-        function updateDashboard(data) {
-            // Update stats
-            document.getElementById('total-sessions').textContent = data.total_sessions;
-            document.getElementById('active-sessions').textContent = data.active_sessions;
-            document.getElementById('avg-feedback').textContent = data.average_feedback.toFixed(1);
-            document.getElementById('avg-response-time').textContent = data.avg_response_time.toFixed(2) + 's';
-
-            // Update charts
-            updateHourlyChart(data.hourly_usage);
-            updateDailyChart(data.daily_usage);
-            updateEmotionsChart(data.common_emotions);
-            updateTopicsChart(data.common_topics);
+        function formatTimestamp(timestamp) {
+            return new Date(timestamp).toLocaleString();
         }
 
-        // Initialize charts
-        function initializeCharts() {
-            // Hourly Usage Chart
-            hourlyChart = new Chart(document.getElementById('hourly-chart'), {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Sessions',
-                        data: [],
-                        borderColor: 'rgb(59, 130, 246)',
-                        tension: 0.1
-                    }]
-                }
-            });
-
-            // Daily Usage Chart
-            dailyChart = new Chart(document.getElementById('daily-chart'), {
-                type: 'bar',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Sessions',
-                        data: [],
-                        backgroundColor: 'rgb(147, 51, 234)'
-                    }]
-                }
-            });
-
-            // Emotions Chart
-            emotionsChart = new Chart(document.getElementById('emotions-chart'), {
-                type: 'doughnut',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        data: [],
-                        backgroundColor: [
-                            '#FF6384',
-                            '#36A2EB',
-                            '#FFCE56',
-                            '#4BC0C0',
-                            '#9966FF'
-                        ]
-                    }]
-                }
-            });
-
-            // Topics Chart
-            topicsChart = new Chart(document.getElementById('topics-chart'), {
-                type: 'bar',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Mentions',
-                        data: [],
-                        backgroundColor: 'rgb(34, 197, 94)'
-                    }]
-                },
-                options: {
-                    indexAxis: 'y'
-                }
-            });
+        function addChatMessage(containerId, chat) {
+            const chatDiv = document.createElement('div');
+            chatDiv.className = 'border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors';
+            chatDiv.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm text-gray-500">${formatTimestamp(chat.timestamp)}</span>
+                    <span class="text-sm font-medium text-indigo-600">${chat.session_id}</span>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex">
+                        <span class="font-medium mr-2 text-gray-700">User:</span>
+                        <p class="text-gray-800">${chat.message}</p>
+                    </div>
+                    <div class="flex">
+                        <span class="font-medium mr-2 text-gray-700">AI:</span>
+                        <p class="text-gray-800">${chat.response}</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById(containerId).prepend(chatDiv);
         }
 
-        function updateHourlyChart(data) {
-            const labels = Object.keys(data).sort();
-            const values = labels.map(label => data[label]);
-            
-            hourlyChart.data.labels = labels;
-            hourlyChart.data.datasets[0].data = values;
-            hourlyChart.update();
-        }
-
-        function updateDailyChart(data) {
-            const labels = Object.keys(data).sort();
-            const values = labels.map(label => data[label]);
-            
-            dailyChart.data.labels = labels;
-            dailyChart.data.datasets[0].data = values;
-            dailyChart.update();
-        }
-
-        function updateEmotionsChart(data) {
-            const labels = Object.keys(data);
-            const values = Object.values(data);
-            
-            emotionsChart.data.labels = labels;
-            emotionsChart.data.datasets[0].data = values;
-            emotionsChart.update();
-        }
-
-        function updateTopicsChart(data) {
-            const labels = Object.keys(data);
-            const values = Object.values(data);
-            
-            topicsChart.data.labels = labels;
-            topicsChart.data.datasets[0].data = values;
-            topicsChart.update();
-        }
-
-        // Socket.IO event handlers
         socket.on('connect', () => {
             console.log('Connected to admin namespace');
-            initializeCharts();
-            // Use initial data if available
-            const initialData = {{ initial_data|tojson|safe }};
-            if (initialData) {
-                updateDashboard(initialData);
-            }
+        });
+
+        socket.on('new_chat', (data) => {
+            addChatMessage('live-chats', data);
+        });
+
+        socket.on('chat_history', (chats) => {
+            const container = document.getElementById('previous-chats');
+            container.innerHTML = '';
+            chats.forEach(chat => {
+                addChatMessage('previous-chats', chat);
+            });
         });
 
         socket.on('connect_error', (error) => {
             console.error('Socket.IO connection error:', error);
         });
 
-        socket.on('analytics_update', (data) => {
-            console.log('Received analytics update:', data);
-            if (data) {
-                updateDashboard(data);
-            }
-        });
+        // Load initial chat history if available
+        const initialChats = {{ chat_history|tojson|safe }};
+        if (initialChats && initialChats.length > 0) {
+            initialChats.forEach(chat => {
+                addChatMessage('previous-chats', chat);
+            });
+        }
     </script>
 </body>
 </html>
