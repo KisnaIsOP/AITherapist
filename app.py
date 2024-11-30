@@ -1,147 +1,63 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from datetime import datetime
 import google.generativeai as genai
 import os
-import urllib.parse
 from dotenv import load_dotenv
 from functools import wraps
 import hashlib
 import random
 import json
 from datetime import datetime, timedelta
-import urllib.parse
 
 load_dotenv()
 
-# Modify database connection configuration
-def get_database_url():
-    # Get the DATABASE_URL from environment variable
-    database_url = os.getenv('DATABASE_URL', 'sqlite:///default.db')
-    
-    # Log the database URL for debugging
-    print(f"Database URL: {database_url}")
-    
-    return database_url
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,  # Test connection before using
-    'pool_recycle': 3600,   # Recycle connections every hour
-}
 
-# Initialize database and migrations
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+# Simplified User model for temporary tracking
+class User:
+    def __init__(self, session_id=None):
+        self.id = os.urandom(24).hex()
+        self.session_id = session_id or self.id
+        self.created_at = datetime.utcnow()
+        self.last_active = self.created_at
+        self.interactions = []
+        self.emotions = []
 
-# Ensure tables are created
-def create_tables():
-    with app.app_context():
-        try:
-            db.create_all()
-            print("Database tables created successfully.")
-        except Exception as e:
-            print(f"Error creating database tables: {e}")
-
-# Call create_tables during app initialization
-create_tables()
-
-# Database Models
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String(100), unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_active = db.Column(db.DateTime, default=datetime.utcnow)
-    interactions = db.relationship('Interaction', backref='user', lazy=True)
-    emotions = db.relationship('EmotionRecord', backref='user', lazy=True)
-
-class Interaction(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    message = db.Column(db.Text)
-    response = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    feedback_score = db.Column(db.Integer, nullable=True)
-    feedback_text = db.Column(db.Text, nullable=True)
-
-class EmotionRecord(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    emotions = db.Column(db.String(200))  # Stored as JSON string
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-class JournalEntry(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    content = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-class GratitudeEntry(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    content = db.Column(db.Text)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-# Analytics Helper Functions
+# Modify get_or_create_user to use in-memory tracking
 def get_or_create_user():
     if 'user_id' not in session:
-        user = User(session_id=os.urandom(24).hex())
-        db.session.add(user)
-        db.session.commit()
+        user = User()
         session['user_id'] = user.id
     else:
-        user = User.query.get(session['user_id'])
-        user.last_active = datetime.utcnow()
-        db.session.commit()
+        user = User(session_id=session['user_id'])
+    
     return user
 
+# Modify log_interaction to store in memory
 def log_interaction(user, message, response, emotions=None):
-    # Log the interaction
-    interaction = Interaction(
-        user_id=user.id,
-        message=message,
-        response=response
-    )
-    db.session.add(interaction)
+    interaction = {
+        'message': message,
+        'response': response,
+        'timestamp': datetime.utcnow()
+    }
+    user.interactions.append(interaction)
     
-    # Log emotions if present
     if emotions:
-        emotion_record = EmotionRecord(
-            user_id=user.id,
-            emotions=json.dumps(emotions)
-        )
-        db.session.add(emotion_record)
+        user.emotions.append({
+            'emotions': emotions,
+            'timestamp': datetime.utcnow()
+        })
     
-    db.session.commit()
     return interaction
 
+# Analytics Helper Functions
 def get_user_analytics():
-    total_users = User.query.count()
-    active_users = User.query.filter(
-        User.last_active >= datetime.utcnow() - timedelta(days=7)
-    ).count()
-    
-    # Get common emotions
-    emotions = EmotionRecord.query.all()
-    emotion_counts = {}
-    for record in emotions:
-        for emotion in json.loads(record.emotions):
-            emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
-    
-    # Get average feedback score
-    avg_score = db.session.query(db.func.avg(Interaction.feedback_score))\
-        .filter(Interaction.feedback_score.isnot(None))\
-        .scalar()
-    
     return {
-        'total_users': total_users,
-        'active_users': active_users,
-        'common_emotions': emotion_counts,
-        'average_feedback': round(avg_score, 2) if avg_score else 0
+        'total_users': 1,  # Always 1 in this model
+        'active_users': 1,
+        'common_emotions': {},
+        'average_feedback': 0
     }
 
 # Configure Gemini AI
@@ -469,7 +385,7 @@ def chat():
     return jsonify({
         'response': ai_response,
         'timestamp': datetime.now().strftime("%H:%M"),
-        'interaction_id': interaction.id
+        'interaction_id': interaction
     })
 
 @app.route('/feedback', methods=['POST'])
@@ -478,11 +394,8 @@ def feedback():
     if 'user_id' in session:
         interaction_id = feedback_data.get('interaction_id')
         if interaction_id:
-            interaction = Interaction.query.get(interaction_id)
-            if interaction:
-                interaction.feedback_score = feedback_data.get('score')
-                interaction.feedback_text = feedback_data.get('feedback')
-                db.session.commit()
+            # No database to update, ignore feedback
+            pass
     return jsonify({'status': 'success'})
 
 @app.route('/journal', methods=['POST'])
@@ -490,12 +403,8 @@ def save_journal():
     if 'user_id' in session:
         content = request.json.get('content')
         if content:
-            entry = JournalEntry(
-                user_id=session['user_id'],
-                content=content
-            )
-            db.session.add(entry)
-            db.session.commit()
+            # No database to store journal entries, ignore
+            pass
     return jsonify({'status': 'success'})
 
 @app.route('/gratitude', methods=['POST'])
@@ -503,12 +412,8 @@ def save_gratitude():
     if 'user_id' in session:
         content = request.json.get('content')
         if content:
-            entry = GratitudeEntry(
-                user_id=session['user_id'],
-                content=content
-            )
-            db.session.add(entry)
-            db.session.commit()
+            # No database to store gratitude entries, ignore
+            pass
     return jsonify({'status': 'success'})
 
 # Admin dashboard route (protected)
