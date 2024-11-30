@@ -27,10 +27,12 @@ def get_database_url():
         # Extract components
         username = parsed_url.username
         password = parsed_url.password
+        original_hostname = parsed_url.hostname
         path = parsed_url.path
         
         # Construct internal network connection string
-        internal_url = f"postgresql://{username}:{password}@localhost{path}"
+        # Use the original hostname, which should be the internal Render hostname
+        internal_url = f"postgresql://{username}:{password}@{original_hostname}{path}"
         return internal_url
     
     return database_url
