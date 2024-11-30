@@ -15,15 +15,21 @@ load_dotenv()
 # Initialize Flask and Socket.IO with proper configuration
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
+
+# Configure Socket.IO for production
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode=None,
+    async_mode='gevent',
+    ping_timeout=60,
+    ping_interval=25,
     logger=True,
-    engineio_logger=True
+    engineio_logger=True,
+    path='/socket.io'
 )
 
-# Store chat history in memory
+# Store chat history in memory (limit to last 100 chats)
+MAX_CHAT_HISTORY = 100
 chat_history = []
 
 # Simplified User model for temporary tracking
@@ -253,6 +259,10 @@ def chat():
         
         # Add to chat history
         chat_history.append(chat_entry)
+        
+        # Limit chat history to last 100 chats
+        if len(chat_history) > MAX_CHAT_HISTORY:
+            chat_history.pop(0)
         
         # Emit to admin panel
         socketio.emit('new_chat', chat_entry, namespace='/admin')

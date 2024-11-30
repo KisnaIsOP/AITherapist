@@ -1,1 +1,1 @@
-web: gunicorn app:app --worker-class sync --workers 1 --threads 100 --timeout 120
+web: gunicorn app:app --worker-class gevent --worker-connections 1000 --timeout 60 --keep-alive 5 --log-level debug
