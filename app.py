@@ -16,24 +16,27 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
 
-# Configure Socket.IO for production
+# Configure Socket.IO for production with optimized settings
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
     async_mode='gevent',
-    ping_timeout=60,
-    ping_interval=25,
-    logger=True,
-    engineio_logger=True,
-    path='/socket.io'
+    ping_timeout=30,
+    ping_interval=15,
+    logger=False,
+    engineio_logger=False,
+    path='/socket.io',
+    async_handlers=True,
+    max_http_buffer_size=5e6  # 5MB max payload
 )
 
-# Store chat history in memory (limit to last 100 chats)
-MAX_CHAT_HISTORY = 100
+# Store chat history in memory (limit to last 25 chats for better memory usage)
+MAX_CHAT_HISTORY = 25
 chat_history = []
 
-# Simplified User model for temporary tracking
 class User:
+    active_users = {}
+
     def __init__(self, session_id=None):
         self.id = os.urandom(24).hex()
         self.session_id = session_id or self.id
@@ -41,6 +44,27 @@ class User:
         self.last_active = self.created_at
         self.interactions = []
         self.emotions = []
+        User.active_users[self.session_id] = self
+
+def cleanup_old_sessions():
+    """Clean up old sessions to free memory"""
+    sessions = list(User.active_users.keys())
+    current_time = datetime.now()
+    for session_id in sessions:
+        user = User.active_users[session_id]
+        # Remove sessions older than 30 minutes
+        if (current_time - user.last_active).total_seconds() > 1800:
+            del User.active_users[session_id]
+
+@app.before_request
+def before_request():
+    # Clean up old sessions every 100 requests
+    if random.randint(1, 100) == 1:
+        cleanup_old_sessions()
+    
+    # Create session ID if not exists
+    if 'session_id' not in session:
+        session['session_id'] = os.urandom(16).hex()
 
 # Modify get_or_create_user to use in-memory tracking
 def get_or_create_user():
@@ -48,9 +72,10 @@ def get_or_create_user():
         user = User()
         session['user_id'] = user.id
     else:
-        user = User(session_id=session['user_id'])
-    
-    return user
+        user = User.active_users.get(session['user_id'])
+        if user is None:
+            user = User(session_id=session['user_id'])
+        return user
 
 # Modify log_interaction to store in memory
 def log_interaction(user, message, response, emotions=None):
@@ -249,18 +274,16 @@ def chat():
         # Get AI response
         response = get_ai_response(user_message, session_id)
         
-        # Create chat entry
+        # Create chat entry with minimal data
         chat_entry = {
-            'session_id': session_id,
+            'session_id': session_id[:8],  # Only store first 8 chars of session ID
             'message': user_message,
             'response': response,
             'timestamp': datetime.now().isoformat()
         }
         
-        # Add to chat history
+        # Add to chat history with size limit
         chat_history.append(chat_entry)
-        
-        # Limit chat history to last 100 chats
         if len(chat_history) > MAX_CHAT_HISTORY:
             chat_history.pop(0)
         

@@ -1,1 +1,1 @@
-web: gunicorn app:app --worker-class gevent --worker-connections 1000 --timeout 60 --keep-alive 5 --log-level debug
+web: gunicorn app:app --worker-class gevent --workers 2 --threads 50 --worker-connections 500 --timeout 30 --max-requests 500 --max-requests-jitter 50
