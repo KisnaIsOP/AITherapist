@@ -20,18 +20,8 @@ def get_database_url():
     # Get the DATABASE_URL from environment variable
     database_url = os.getenv('DATABASE_URL', 'sqlite:///default.db')
     
-    # Log the original database URL for debugging
-    print(f"Original Database URL: {database_url}")
-    
-    # If it's a PostgreSQL URL, parse and potentially modify it
-    if database_url.startswith('postgresql://'):
-        parsed_url = urllib.parse.urlparse(database_url)
-        
-        # Log parsed URL components for debugging
-        print(f"Parsed URL Components:")
-        print(f"Hostname: {parsed_url.hostname}")
-        print(f"Username: {parsed_url.username}")
-        print(f"Path: {parsed_url.path}")
+    # Log the database URL for debugging
+    print(f"Database URL: {database_url}")
     
     return database_url
 
@@ -44,8 +34,21 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 3600,   # Recycle connections every hour
 }
 
+# Initialize database and migrations
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
+
+# Ensure tables are created
+def create_tables():
+    with app.app_context():
+        try:
+            db.create_all()
+            print("Database tables created successfully.")
+        except Exception as e:
+            print(f"Error creating database tables: {e}")
+
+# Call create_tables during app initialization
+create_tables()
 
 # Database Models
 class User(db.Model):
