@@ -1,0 +1,326 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap');
+
+/* Root Variables */
+:root {
+    --primary-color: #6a5acd;
+    --secondary-color: #faf5ff;
+    --background-color: #f8f9ff;
+    --text-color: #2c3e50;
+    --message-bg-user: #6a5acd;
+    --message-bg-therapist: #ffffff;
+    --border-color: #e1e8ed;
+    --accent-color-1: #d8f3dc;
+    --accent-color-2: #cde7f5;
+    --shadow-color: rgba(106, 90, 205, 0.1);
+    --transition-speed: 0.3s;
+}
+
+/* Relaxation Mode */
+:root[data-theme="relax"] {
+    --primary-color: #4b7bec;
+    --background-color: #e0f7fa;
+    --message-bg-user: #4b7bec;
+    --text-color: #34495e;
+    --shadow-color: rgba(75, 123, 236, 0.1);
+}
+
+/* Breathing Animation */
+@keyframes breathe {
+    0%, 100% { box-shadow: 0 4px 20px var(--shadow-color); }
+    50% { box-shadow: 0 6px 30px var(--shadow-color); }
+}
+
+/* Message Fade Animation */
+@keyframes fadeIn {
+    from { 
+        opacity: 0; 
+        transform: translateY(10px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+
+/* Gentle Pulse Animation */
+@keyframes gentlePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+body {
+    background: linear-gradient(135deg, var(--background-color), var(--accent-color-2));
+    color: var(--text-color);
+    font-family: 'Nunito', 'Segoe UI', sans-serif;
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    line-height: 1.8;
+    transition: background-color var(--transition-speed) ease;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header Styling */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    animation: fadeIn 1s ease-out;
+}
+
+header h1 {
+    color: var(--primary-color);
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+header .subtitle {
+    color: var(--text-color);
+    opacity: 0.8;
+    font-size: 1.1em;
+}
+
+/* Chat Container */
+.chat-container {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 20px var(--shadow-color);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 80vh;
+    transition: all var(--transition-speed) ease;
+    animation: breathe 5s infinite;
+}
+
+.messages {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    scroll-behavior: smooth;
+}
+
+/* Message Styling */
+.message {
+    display: flex;
+    flex-direction: column;
+    max-width: 75%;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.message.user {
+    align-self: flex-end;
+}
+
+.message-content {
+    padding: 15px 20px;
+    border-radius: 18px;
+    margin-bottom: 5px;
+    line-height: 1.8;
+    transition: all var(--transition-speed) ease;
+}
+
+.user .message-content {
+    background: var(--message-bg-user);
+    color: white;
+    border-bottom-right-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.therapist .message-content {
+    background: var(--message-bg-therapist);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: 5px;
+    box-shadow: 0 2px 15px var(--shadow-color);
+}
+
+.timestamp {
+    font-size: 0.8em;
+    color: #8899a6;
+    margin-top: 5px;
+}
+
+/* Input Container */
+.input-container {
+    padding: 20px;
+    background: white;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 10px;
+}
+
+textarea {
+    flex-grow: 1;
+    border: 2px solid var(--border-color);
+    border-radius: 25px;
+    padding: 12px 20px;
+    resize: none;
+    font-family: inherit;
+    font-size: 1em;
+    transition: all var(--transition-speed) ease;
+    line-height: 1.6;
+}
+
+textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--shadow-color);
+    outline: none;
+}
+
+button {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    cursor: pointer;
+    transition: all var(--transition-speed) ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+button:hover {
+    transform: scale(1.05);
+    background: var(--primary-color);
+    box-shadow: 0 2px 10px var(--shadow-color);
+}
+
+/* Engagement Features */
+.engagement-features {
+    margin-top: 20px;
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.journal-section, .gratitude-section, .mindfulness-timer {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 2px 15px var(--shadow-color);
+    transition: all var(--transition-speed) ease;
+}
+
+.journal-section:hover, .gratitude-section:hover, .mindfulness-timer:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px var(--shadow-color);
+}
+
+/* Feedback Container */
+.feedback-container {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    margin-top: 20px;
+    text-align: center;
+    box-shadow: 0 2px 15px var(--shadow-color);
+    animation: fadeIn 0.5s ease-out;
+}
+
+.feedback-stars {
+    font-size: 1.5em;
+    color: var(--primary-color);
+    margin: 15px 0;
+}
+
+.feedback-stars i {
+    cursor: pointer;
+    transition: all var(--transition-speed) ease;
+    margin: 0 5px;
+}
+
+.feedback-stars i:hover {
+    transform: scale(1.2);
+}
+
+/* Support Resources */
+.support-resources {
+    background: white;
+    padding: 20px;
+    border-radius: 15px;
+    margin-top: 20px;
+    box-shadow: 0 2px 15px var(--shadow-color);
+}
+
+.support-resources h3 {
+    color: var(--primary-color);
+    margin-bottom: 15px;
+}
+
+.support-resources ul {
+    list-style: none;
+    padding: 0;
+}
+
+.support-resources li {
+    margin: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.support-resources a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all var(--transition-speed) ease;
+}
+
+.support-resources a:hover {
+    color: var(--text-color);
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--secondary-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+    opacity: 0.8;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    opacity: 1;
+}
+
+/* Mindfulness Timer Specific Styling */
+.timer-display {
+    font-size: 2em;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-align: center;
+    margin: 20px 0;
+    animation: gentlePulse 5s infinite;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .message {
+        max-width: 85%;
+    }
+    
+    .engagement-features {
+        grid-template-columns: 1fr;
+    }
+}

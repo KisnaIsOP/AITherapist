@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindful Chat - AI Therapist</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Mindful Chat <i class="fas fa-heart"></i></h1>
+            <p class="subtitle">A safe space for reflection and support</p>
+        </header>
+
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message therapist">
+                    <div class="message-content">
+                        <p>{{ initial_question if initial_question else "Welcome back! How are you feeling today?" }}</p>
+                        <span class="timestamp">{{ now }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <textarea id="user-input" placeholder="Share what's on your mind..." rows="3"></textarea>
+                <button id="send-button">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Engagement Features -->
+        <div class="engagement-features">
+            <div class="journal-section" style="display: none;">
+                <h3>Journal Entry</h3>
+                <textarea id="journal-entry" placeholder="Write your thoughts here..."></textarea>
+                <button id="save-journal">Save Entry</button>
+            </div>
+
+            <div class="gratitude-section" style="display: none;">
+                <h3>Gratitude List</h3>
+                <ul id="gratitude-list"></ul>
+                <input type="text" id="gratitude-input" placeholder="I'm grateful for...">
+                <button id="add-gratitude">Add</button>
+            </div>
+
+            <div class="mindfulness-timer" style="display: none;">
+                <h3>Mindfulness Timer</h3>
+                <div class="timer-display">5:00</div>
+                <button id="start-timer">Start</button>
+            </div>
+        </div>
+
+        <!-- Feedback Section -->
+        <div class="feedback-container" style="display: none;">
+            <h3>How helpful was this conversation?</h3>
+            <div class="feedback-stars">
+                <i class="far fa-star" data-rating="1"></i>
+                <i class="far fa-star" data-rating="2"></i>
+                <i class="far fa-star" data-rating="3"></i>
+                <i class="far fa-star" data-rating="4"></i>
+                <i class="far fa-star" data-rating="5"></i>
+            </div>
+            <textarea id="feedback-text" placeholder="Any additional feedback? (optional)"></textarea>
+            <button id="submit-feedback">Submit Feedback</button>
+        </div>
+
+        <!-- Support Resources -->
+        <div class="support-resources">
+            <h3>Support Resources</h3>
+            <ul>
+                <li><i class="fas fa-phone"></i> Crisis Helpline: 988</li>
+                <li><i class="fas fa-globe"></i> <a href="https://www.nami.org" target="_blank">NAMI.org</a></li>
+                <li><i class="fas fa-book"></i> <a href="https://www.psychologytoday.com" target="_blank">Psychology Today</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
