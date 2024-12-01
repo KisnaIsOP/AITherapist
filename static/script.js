@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const feedbackContainer = document.querySelector('.feedback-container');
     const feedbackStars = document.querySelectorAll('.feedback-stars i');
     const submitFeedback = document.getElementById('submit-feedback');
+    const themeToggle = document.getElementById('themeToggle');
     
     let currentRating = 0;
     let conversationCount = 0;
@@ -18,6 +19,136 @@ document.addEventListener('DOMContentLoaded', function() {
     const gratitudeSection = document.querySelector('.gratitude-section');
     const mindfulnessTimer = document.querySelector('.mindfulness-timer');
     
+    // Theme Management
+    const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else if (prefersDarkScheme.matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
+    // Theme toggle handler
+    themeToggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        
+        // Add animation class
+        themeToggle.classList.add('theme-transition');
+        setTimeout(() => themeToggle.classList.remove('theme-transition'), 300);
+    });
+
+    // Enhanced Emoji Mapping with more contextual categories
+    const emojiMap = {
+        greeting: ['👋', '🤗', '😊', '✨', '💫'],
+        farewell: ['👋', '💫', '🌟', '✨', '🤗'],
+        positive: ['😊', '🌟', '💫', '✨', '🎉', '💖', '🌈'],
+        concern: ['😔', '💙', '🫂', '💭', '🤍'],
+        empathy: ['💗', '🫂', '💝', '💖', '🤗'],
+        reflection: ['🤔', '💭', '💡', '✨', '🌟'],
+        listening: ['👂', '🎧', '💭', '🤝', '💫'],
+        support: ['💪', '🤗', '🌈', '💫', '💝'],
+        gratitude: ['🙏', '💖', '✨', '💫', '🌟'],
+        encouragement: ['💫', '🌟', '✨', '💪', '🔆'],
+        understanding: ['💭', '🤝', '💡', '💫', '💖'],
+        sympathy: ['💙', '🫂', '🤗', '💖', '💝'],
+        celebration: ['🎉', '🌟', '✨', '🎊', '💫'],
+        mindfulness: ['🧘‍♀️', '🌱', '🍃', '🌸', '💫'],
+        growth: ['🌱', '🚀', '📈', '💫', '⭐'],
+        healing: ['💖', '🌈', '✨', '🌸', '💫'],
+        strength: ['💪', '🦁', '⭐', '🌟', '💫'],
+        peace: ['🕊️', '☮️', '🌸', '✨', '💫'],
+        anxiety: ['😮‍💨', '💭', '🫂', '💙', '🤍'],
+        depression: ['💙', '🫂', '💗', '🤍', '💝'],
+        hope: ['🌅', '🌈', '✨', '💫', '🌟'],
+        sleep: ['😴', '💤', '🌙', '✨', '🌟'],
+        stress: ['😮‍💨', '🫂', '💆‍♀️', '🌸', '💫'],
+        confidence: ['💪', '👑', '⭐', '🌟', '💫']
+    };
+
+    // Enhanced context detection for better emoji placement
+    function addEmojisToResponse(response) {
+        const lowerResponse = response.toLowerCase();
+        let enhancedResponse = response;
+        
+        // Greeting detection
+        if (/^(hi|hello|hey|greetings|good (morning|afternoon|evening))/i.test(response)) {
+            enhancedResponse = getRandomEmoji('greeting') + ' ' + enhancedResponse;
+        }
+        
+        // Farewell detection
+        if (/(goodbye|bye|take care|see you|until next time)/i.test(lowerResponse)) {
+            enhancedResponse += ' ' + getRandomEmoji('farewell');
+        }
+        
+        // Emotional support detection
+        if (/(here for you|support you|understand|must be hard|difficult time)/i.test(lowerResponse)) {
+            enhancedResponse = getRandomEmoji('empathy') + ' ' + enhancedResponse;
+        }
+        
+        // Encouragement detection
+        if (/(you can do|believe in|keep going|step forward|progress)/i.test(lowerResponse)) {
+            enhancedResponse += ' ' + getRandomEmoji('encouragement');
+        }
+        
+        // Anxiety/Stress detection
+        if (/(anxious|worried|stress|overwhelm|nervous)/i.test(lowerResponse)) {
+            enhancedResponse = getRandomEmoji('anxiety') + ' ' + enhancedResponse;
+        }
+        
+        // Depression/Sadness detection
+        if (/(sad|depress|down|lonely|hopeless)/i.test(lowerResponse)) {
+            enhancedResponse = getRandomEmoji('depression') + ' ' + enhancedResponse;
+        }
+        
+        // Hope/Positivity detection
+        if (/(hope|better days|future|positive|bright)/i.test(lowerResponse)) {
+            enhancedResponse += ' ' + getRandomEmoji('hope');
+        }
+        
+        // Mindfulness/Relaxation detection
+        if (/(breathe|relax|mindful|present|calm)/i.test(lowerResponse)) {
+            enhancedResponse = getRandomEmoji('mindfulness') + ' ' + enhancedResponse;
+        }
+        
+        // Gratitude detection
+        if (/(thank|grateful|appreciate|blessed)/i.test(lowerResponse)) {
+            enhancedResponse += ' ' + getRandomEmoji('gratitude');
+        }
+        
+        // Sleep/Rest detection
+        if (/(sleep|rest|tired|exhausted|night)/i.test(lowerResponse)) {
+            enhancedResponse = getRandomEmoji('sleep') + ' ' + enhancedResponse;
+        }
+        
+        // Confidence/Strength detection
+        if (/(strong|capable|achieve|proud|confidence)/i.test(lowerResponse)) {
+            enhancedResponse += ' ' + getRandomEmoji('confidence');
+        }
+        
+        return enhancedResponse;
+    }
+
+    // Get random emoji with weighted selection
+    function getRandomEmoji(category) {
+        const emojis = emojiMap[category];
+        if (!emojis) return '';
+        
+        // Add variation to prevent repetitive emojis
+        const lastUsedEmoji = sessionStorage.getItem(`last_${category}_emoji`);
+        let selectedEmoji;
+        
+        do {
+            selectedEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+        } while (selectedEmoji === lastUsedEmoji && emojis.length > 1);
+        
+        sessionStorage.setItem(`last_${category}_emoji`, selectedEmoji);
+        return selectedEmoji;
+    }
+
     // Message handling
     function addMessage(content, isUser) {
         const messageDiv = document.createElement('div');
@@ -77,7 +208,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.error) {
                 addMessage("I apologize, but I'm having trouble responding right now. Please try again.", false);
             } else {
-                addMessage(data.response, false);
+                const enhancedResponse = addEmojisToResponse(data.response);
+                addMessage(enhancedResponse, false);
 
                 // Check if response contains engagement prompts
                 if (data.response.includes('journal') || data.response.includes('write down')) {
