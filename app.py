@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from datetime import datetime
-import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -9,6 +8,7 @@ import random
 import json
 from datetime import datetime, timedelta
 from flask_socketio import SocketIO, emit
+import openai
 
 load_dotenv()
 
@@ -94,133 +94,80 @@ def log_interaction(user, message, response, emotions=None):
     
     return interaction
 
-# Configure Gemini AI
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure OpenAI
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
-# Initialize Gemini AI model
-model = genai.GenerativeModel('gemini-pro')
-
-# Enhanced therapeutic conversation context with advanced engagement strategies
-THERAPEUTIC_CONTEXT = """
-You are an empathetic and engaging AI therapist. Follow these guidelines for meaningful conversations:
-
-1. Active Listening & Paraphrasing:
-- Mirror their words: "I hear you saying that..."
-- Validate feelings: "It makes sense that you feel [emotion] because..."
-- Check understanding: "Let me make sure I understand correctly..."
-
-2. Emotional Reflection:
-- Acknowledge emotions explicitly: "It sounds like you're feeling [emotion]"
-- Show deep understanding: "That must be really [challenging/frustrating/difficult]"
-- Validate experiences: "It's completely natural to feel this way"
-
-3. Personalized Engagement:
-- Reference previous details: "Earlier you mentioned [detail]..."
-- Use their language style: Match formal/casual tone
-- Remember key points: "Last time we talked about [topic]..."
-
-4. Storytelling Encouragement:
-- Ask for specific examples: "Can you tell me about a time when..."
-- Explore recent experiences: "What was the last situation that made you feel this way?"
-- Encourage details: "What happened next?"
-
-5. Gentle Probing Techniques:
-- Use follow-up questions: "What do you think led to that?"
-- Explore patterns: "Have you noticed when these feelings are strongest?"
-- Investigate coping: "How do you usually handle such situations?"
-
-6. Collaborative Problem-Solving:
-- Brainstorm together: "Let's explore some possibilities..."
-- Ask for their input: "What solutions have you considered?"
-- Build on their ideas: "That's an interesting approach. How might we develop that?"
-
-7. Trust Building:
-- Start light: Begin with easier topics
-- Progress gradually: Move to deeper issues as trust builds
-- Acknowledge sharing: "Thank you for trusting me with this"
-
-8. Support System Exploration:
-- Ask about resources: "Who do you turn to for support?"
-- Explore relationships: "How do others in your life view this?"
-- Discuss professional help when appropriate
-
-9. Interactive Engagement:
-- Suggest reflection exercises: "Would you like to try a quick mindfulness exercise?"
-- Set micro-goals: "What's one small step you could take today?"
-- Encourage journaling: "Consider writing down your thoughts about..."
-
-10. Conversation Flow:
-- Use open-ended questions
-- Build on their responses
-- Maintain natural dialogue
-- Show genuine curiosity
-
-Important Guidelines:
-- Always maintain empathy and support
-- Never provide medical advice
-- Keep responses focused and relevant
-- Encourage professional help when needed
-- Celebrate progress and insights
-- Handle crisis situations appropriately
-"""
-
-# Expanded engagement questions for different scenarios
-ENGAGEMENT_QUESTIONS = {
-    'initial': [
-        "I'm here to listen and support you. What brings you here today?",
-        "Before we begin, how are you feeling right now? Take your time to share.",
-        "I'd love to understand what's been going on for you lately. What would you like to explore?",
-        "Thank you for reaching out. What's been on your mind that you'd like to discuss?"
-    ],
-    'follow_up': [
-        "How have things been since we last talked?",
-        "What's been most on your mind since our last conversation?",
-        "I remember we discussed [topic]. How have things developed since then?"
-    ],
-    'deepening': [
-        "Could you tell me more about that experience?",
-        "What do you think that situation taught you about yourself?",
-        "How did that make you feel in the moment?"
-    ],
-    'support': [
-        "That sounds really challenging. What kind of support would be most helpful right now?",
-        "You're showing a lot of strength by sharing this. What would help you feel more supported?",
-        "I'm here with you. What would you like to focus on first?"
-    ]
-}
-
-def get_ai_response(user_input, conversation_history):
+def get_ai_response(message, session_id):
     try:
-        # Initialize or get user session
-        if 'user_session' not in session:
-            session['user_session'] = {}
+        # Get user context
+        user = User.active_users.get(session_id)
+        if not user:
+            user = User(session_id=session_id)
+        
+        # Update last active time
+        user.last_active = datetime.now()
+        
+        # Create a system message that defines the AI's role and personality
+        system_message = """You are Nirya, an empathetic AI mental health companion. Your responses should be:
+        1. Warm and supportive, but professional
+        2. Focused on the user's emotional well-being
+        3. Consistent with previous responses
+        4. Educational when discussing psychology topics
+        5. Clear and direct when answering academic questions
+        
+        Important guidelines:
+        - If asked about psychology topics, provide accurate academic information
+        - If the user is sharing personal experiences, focus on emotional support
+        - Maintain conversation context and avoid generic responses
+        - If you don't know something, admit it honestly
+        - Keep responses concise but meaningful"""
 
-        # Create the prompt with Nirya's persona
-        prompt = f"""You are Nirya, an empathetic AI mental health companion. Your name comes from Sanskrit, meaning wisdom and guidance. 
-        You provide supportive, understanding responses while maintaining appropriate boundaries. You're warm, gentle, and focused on emotional well-being.
-        
-        Previous conversation:
-        {conversation_history}
-        
-        User's message: {user_input}
-        
-        Respond as Nirya, keeping in mind:
-        1. Be empathetic and validate emotions
-        2. Use a warm, supportive tone
-        3. Ask thoughtful follow-up questions
-        4. Suggest gentle reflections when appropriate
-        5. Never give medical advice
-        6. Maintain professional boundaries
-        
-        Nirya's response:"""
+        # Create conversation history
+        conversation = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": message}
+        ]
 
-        response = model.generate_content(prompt)
+        # Add recent chat history for context (last 3 messages)
+        if hasattr(user, 'chat_history') and user.chat_history:
+            recent_history = user.chat_history[-3:]
+            for chat in recent_history:
+                conversation.extend([
+                    {"role": "user", "content": chat['message']},
+                    {"role": "assistant", "content": chat['response']}
+                ])
+
+        # Get response from OpenAI
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=conversation,
+            max_tokens=200,  # Limit response length
+            temperature=0.7,  # Balance between creativity and consistency
+            presence_penalty=0.6,  # Encourage topic variation
+            frequency_penalty=0.3  # Reduce repetition
+        )
+
+        # Extract and store the response
+        ai_response = response.choices[0].message['content'].strip()
         
-        return response.text
+        # Update user's chat history
+        if not hasattr(user, 'chat_history'):
+            user.chat_history = []
+        user.chat_history.append({
+            'message': message,
+            'response': ai_response,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        # Keep only last 5 messages in user history
+        if len(user.chat_history) > 5:
+            user.chat_history = user.chat_history[-5:]
+
+        return ai_response
 
     except Exception as e:
-        return "I want to make sure I understand what you're sharing. Could you tell me more about that?"
+        print(f"Error in get_ai_response: {str(e)}")
+        return "I apologize, but I'm having trouble processing your request right now. Could you please try again?"
 
 # Admin authentication
 def admin_required(f):
@@ -261,7 +208,7 @@ def admin_logout():
 def home():
     if 'conversation_history' not in session:
         session['conversation_history'] = []
-        return render_template('index.html', initial_question=random.choice(ENGAGEMENT_QUESTIONS['initial']))
+        return render_template('index.html', initial_question=random.choice(["I'm here to listen and support you. What brings you here today?", "Before we begin, how are you feeling right now? Take your time to share.", "I'd love to understand what's been going on for you lately. What would you like to explore?", "Thank you for reaching out. What's been on your mind that you'd like to discuss?"]))
     return render_template('index.html')
 
 @app.route('/chat', methods=['POST'])
