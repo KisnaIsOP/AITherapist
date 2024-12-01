@@ -846,6 +846,7 @@ async def generate_enhanced_response(message: str, session_id: str, context: dic
         conversation_enhancer.conversation_depth = conversation_enhancer.analyze_depth(message)
         
         return response
+        
     except Exception as e:
         print(f"Error in enhanced response generation: {str(e)}")
         return "I'm here to listen and support you. Could you please share that with me again?"
@@ -1002,7 +1003,7 @@ def home():
 
 @app.route('/get_response', methods=['POST'])
 @rate_limit
-def get_response():
+async def get_response():
     try:
         data = request.get_json()
         if not data:
@@ -1016,20 +1017,7 @@ def get_response():
         if not session_id:
             return jsonify({'error': 'Session ID is required'}), 400
         
-        # Create event loop in a thread-safe way
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        try:
-            # Run the async function in the event loop
-            response = loop.run_until_complete(get_ai_response(message, session_id))
-        finally:
-            # Clean up
-            loop.stop()
-            loop.close()
+        response = await get_ai_response(message, session_id)
         
         if not response:
             return jsonify({'error': 'Failed to generate response'}), 500
