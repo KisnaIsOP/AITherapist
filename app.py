@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from datetime import datetime
+import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -8,15 +9,12 @@ import random
 import json
 from datetime import datetime, timedelta
 from flask_socketio import SocketIO, emit
-import openai
 
 load_dotenv()
 
 # Initialize Flask and Socket.IO with proper configuration
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
-
-# Configure Socket.IO for production with optimized settings
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -29,6 +27,13 @@ socketio = SocketIO(
     async_handlers=True,
     max_http_buffer_size=5e6  # 5MB max payload
 )
+
+# Configure Gemini AI
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+genai.configure(api_key=GOOGLE_API_KEY)
+
+# Initialize Gemini AI model
+model = genai.GenerativeModel('gemini-pro')
 
 # Store chat history in memory (limit to last 25 chats for better memory usage)
 MAX_CHAT_HISTORY = 25
@@ -94,9 +99,6 @@ def log_interaction(user, message, response, emotions=None):
     
     return interaction
 
-# Configure OpenAI
-openai.api_key = os.getenv('OPENAI_API_KEY')
-
 def get_ai_response(message, session_id):
     try:
         # Get user context
@@ -106,58 +108,89 @@ def get_ai_response(message, session_id):
         
         # Update last active time
         user.last_active = datetime.now()
-        
-        # Create a system message that defines the AI's role and personality
-        system_message = """You are Nirya, an empathetic AI mental health companion. Your responses should be:
-        1. Warm and supportive, but professional
-        2. Focused on the user's emotional well-being
-        3. Consistent with previous responses
-        4. Educational when discussing psychology topics
-        5. Clear and direct when answering academic questions
-        
-        Important guidelines:
-        - If asked about psychology topics, provide accurate academic information
-        - If the user is sharing personal experiences, focus on emotional support
-        - Maintain conversation context and avoid generic responses
-        - If you don't know something, admit it honestly
+
+        # Enhanced context with personality and capabilities
+        context = """You are Nirya, an empathetic AI mental health companion with expertise in psychology. Your core traits:
+
+        PERSONALITY:
+        - Warm and understanding, like a supportive friend
+        - Professional but not overly formal
+        - Patient and attentive to emotional nuances
+        - Knowledgeable about psychology concepts
+
+        CAPABILITIES:
+        1. Psychology Education:
+        - Explain concepts clearly with examples
+        - Focus on practical applications
+        - Use analogies for complex topics
+        - Cite key psychologists when relevant
+
+        2. Emotional Support:
+        - Validate feelings without judgment
+        - Reflect emotions with empathy
+        - Offer gentle encouragement
+        - Maintain appropriate boundaries
+
+        3. Conversation Style:
+        - Ask thoughtful follow-up questions
+        - Remember important details
+        - Acknowledge progress and insights
+        - Keep responses focused and relevant
+
+        RESPONSE GUIDELINES:
+        - For personal issues: Focus on emotional support
+        - For academic questions: Provide clear, accurate information
+        - For general chat: Be engaging but professional
+        - If unsure: Ask clarifying questions
         - Keep responses concise but meaningful"""
 
-        # Create conversation history
-        conversation = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": message}
-        ]
-
-        # Add recent chat history for context (last 3 messages)
+        # Enhanced history tracking with emotion and topic context
+        history = ""
         if hasattr(user, 'chat_history') and user.chat_history:
             recent_history = user.chat_history[-3:]
+            history = "\nRECENT CONVERSATION CONTEXT:"
             for chat in recent_history:
-                conversation.extend([
-                    {"role": "user", "content": chat['message']},
-                    {"role": "assistant", "content": chat['response']}
-                ])
+                history += f"\nUser: {chat['message']}"
+                history += f"\nNirya: {chat['response']}"
+                # Try to extract emotion/topic for context
+                if 'emotion' in chat:
+                    history += f"\n[Noted emotion: {chat['emotion']}]"
+                if 'topic' in chat:
+                    history += f"\n[Discussion topic: {chat['topic']}]"
+            history += "\n"
 
-        # Get response from OpenAI
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=conversation,
-            max_tokens=200,  # Limit response length
-            temperature=0.7,  # Balance between creativity and consistency
-            presence_penalty=0.6,  # Encourage topic variation
-            frequency_penalty=0.3  # Reduce repetition
-        )
+        # Analyze current message for better context
+        message_lower = message.lower()
+        current_context = ""
+        
+        # Detect if it's a psychology question
+        psych_keywords = ['psychology', 'theory', 'concept', 'study', 'research', 'experiment']
+        if any(keyword in message_lower for keyword in psych_keywords):
+            current_context = "\n[Context: Academic psychology question]"
+        
+        # Detect if it's emotional sharing
+        emotion_keywords = ['feel', 'feeling', 'sad', 'happy', 'angry', 'worried', 'stressed']
+        if any(keyword in message_lower for keyword in emotion_keywords):
+            current_context = "\n[Context: Emotional sharing]"
 
-        # Extract and store the response
-        ai_response = response.choices[0].message['content'].strip()
+        # Create the complete prompt with enhanced context
+        prompt = f"{context}\n{history}\nCurrent context:{current_context}\n\nUser: {message}\n\nNirya's response:"
+
+        # Get response from Gemini
+        response = model.generate_content(prompt)
+        ai_response = response.text.strip()
+        
+        # Extract potential emotion/topic for future context
+        chat_entry = {
+            'message': message,
+            'response': ai_response,
+            'timestamp': datetime.now().isoformat()
+        }
         
         # Update user's chat history
         if not hasattr(user, 'chat_history'):
             user.chat_history = []
-        user.chat_history.append({
-            'message': message,
-            'response': ai_response,
-            'timestamp': datetime.now().isoformat()
-        })
+        user.chat_history.append(chat_entry)
         
         # Keep only last 5 messages in user history
         if len(user.chat_history) > 5:
