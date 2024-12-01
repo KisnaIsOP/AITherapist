@@ -18,12 +18,29 @@ from datetime import datetime, timedelta
 import json
 from typing import Dict, List, Optional, Tuple, Union
 import threading
+from cachetools import TTLCache
+from functools import wraps
+import time
+from flask_session import Session
 
 load_dotenv()
 
 # Initialize Flask and Socket.IO with proper configuration
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'default-secret-key')
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
+app.config['SESSION_FILE_THRESHOLD'] = 100
+app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+app.config['ASYNC_MODE'] = 'gevent'
+
+# Ensure session directory exists
+os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+
+# Initialize session interface
+Session(app)
+
+# Initialize Socket.IO with async mode
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -905,187 +922,41 @@ async def get_ai_response(message: str, session_id: str) -> str:
         return response
 
     except Exception as e:
-        print(f"Error in get_ai_response: {str(e)}")
+        app.logger.error(f"Error in get_ai_response: {str(e)}")
         return "I apologize, but I'm having trouble processing your request right now. Could you please try again?"
 
-# Enhanced human-like traits
-PERSONALITY_QUIRKS = {
-    'humor_styles': {
-        'gentle': [
-            'That made me smile',
-            'I see what you did there',
-            'That\'s quite clever'
-        ],
-        'playful': [
-            'Well, that\'s an interesting way to look at it!',
-            'You have a unique perspective',
-            'That\'s a creative approach'
+# Rate limiting configuration
+RATE_LIMIT = 30  # requests
+RATE_LIMIT_PERIOD = 60  # seconds
+rate_limit_store = TTLCache(maxsize=10000, ttl=RATE_LIMIT_PERIOD)
+
+def rate_limit(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        now = time.time()
+        client_ip = request.remote_addr
+        
+        # Get client's request history
+        if client_ip not in rate_limit_store:
+            rate_limit_store[client_ip] = []
+        
+        # Clean old requests
+        rate_limit_store[client_ip] = [
+            req_time for req_time in rate_limit_store[client_ip]
+            if now - req_time < RATE_LIMIT_PERIOD
         ]
-    },
-    'thinking_patterns': {
-        'curiosity': [
-            'I\'m curious about',
-            'That\'s fascinating',
-            'Tell me more about'
-        ],
-        'reflection': [
-            'I\'m taking a moment to process that',
-            'Let me think about what you\'ve said',
-            'That\'s given me something to consider'
-        ]
-    },
-    'personality_traits': {
-        'warmth': [
-            'I really appreciate you sharing that',
-            'It means a lot that you trust me',
-            'I\'m glad we\'re talking about this'
-        ],
-        'authenticity': [
-            'To be honest',
-            'I want to be direct with you',
-            'Let me share my thoughts'
-        ]
-    }
-}
-
-# Memory patterns for more natural conversation
-MEMORY_PATTERNS = {
-    'callbacks': {
-        'recent': 'You mentioned earlier about {topic}',
-        'thematic': 'This reminds me of when you talked about {topic}',
-        'emotional': 'Last time you felt {emotion} about {topic}'
-    },
-    'topics': {
-        'personal': ['family', 'work', 'hobbies', 'feelings'],
-        'growth': ['goals', 'challenges', 'progress', 'learning'],
-        'wellbeing': ['stress', 'happiness', 'health', 'balance']
-    },
-    'transitions': {
-        'gentle': [
-            'Speaking of which',
-            'That brings to mind',
-            'This connects with'
-        ],
-        'exploratory': [
-            'I wonder how this relates to',
-            'This makes me think about',
-            'Perhaps this connects with'
-        ]
-    }
-}
-
-class PersonalityCore:
-    def __init__(self):
-        self.mood = 'balanced'
-        self.energy_level = 'moderate'
-        self.recent_topics = []
-        self.interaction_style = 'adaptive'
         
-    def adjust_personality(self, user_message: str, user_emotion: str) -> dict:
-        """Adjust AI personality based on user interaction"""
-        # Quick message analysis
-        msg_lower = user_message.lower()
+        # Check rate limit
+        if len(rate_limit_store[client_ip]) >= RATE_LIMIT:
+            return jsonify({
+                'error': 'Rate limit exceeded',
+                'retry_after': int(RATE_LIMIT_PERIOD - (now - rate_limit_store[client_ip][0]))
+            }), 429
         
-        # Adjust mood based on user emotion
-        if user_emotion in ['sad', 'anxious']:
-            self.mood = 'empathetic'
-            self.energy_level = 'gentle'
-        elif user_emotion in ['happy', 'excited']:
-            self.mood = 'upbeat'
-            self.energy_level = 'matched'
-        
-        # Track conversation topics
-        for category, topics in MEMORY_PATTERNS['topics'].items():
-            for topic in topics:
-                if topic in msg_lower:
-                    self.recent_topics.append(topic)
-                    if len(self.recent_topics) > 5:
-                        self.recent_topics.pop(0)
-        
-        return {
-            'mood': self.mood,
-            'energy': self.energy_level,
-            'style': self.interaction_style,
-            'topics': self.recent_topics[-3:]
-        }
-    
-    def get_personality_elements(self) -> dict:
-        """Get appropriate personality elements for response"""
-        elements = {
-            'quirk': random.choice(PERSONALITY_QUIRKS['humor_styles'][
-                'gentle' if self.mood == 'empathetic' else 'playful'
-            ]),
-            'thinking': random.choice(PERSONALITY_QUIRKS['thinking_patterns'][
-                'reflection' if self.mood == 'empathetic' else 'curiosity'
-            ]),
-            'trait': random.choice(PERSONALITY_QUIRKS['personality_traits'][
-                'warmth' if self.energy_level == 'gentle' else 'authenticity'
-            ])
-        }
-        
-        if self.recent_topics:
-            elements['callback'] = MEMORY_PATTERNS['callbacks']['recent'].format(
-                topic=random.choice(self.recent_topics)
-            )
-        
-        return elements
-
-# Update the prompt enhancement
-def enhance_prompt_with_personality(base_prompt: str, personality: dict) -> str:
-    """Add personality elements to prompt"""
-    elements = personality.get('elements', {})
-    
-    personality_guide = f"""
-    Current Personality State:
-    - Mood: {personality['mood']}
-    - Energy: {personality['energy']}
-    - Style: {personality['style']}
-    
-    Recent Topics: {', '.join(personality['topics'])}
-    
-    Expression Elements:
-    - Quirk: {elements.get('quirk', '')}
-    - Thinking: {elements.get('thinking', '')}
-    - Trait: {elements.get('trait', '')}
-    {f"- Callback: {elements.get('callback', '')}" if 'callback' in elements else ''}
-    
-    Response Guidelines:
-    1. Match the mood and energy level
-    2. Use natural language variations
-    3. Show personality through small quirks
-    4. Maintain conversation flow
-    5. Reference past topics naturally
-    """
-    
-    return f"{base_prompt}\n{personality_guide}"
-
-# Initialize personality core
-personality_core = PersonalityCore()
-
-# Update response generation
-async def generate_enhanced_response(message: str, context: dict) -> str:
-    """Generate more human-like responses"""
-    try:
-        # Adjust personality based on user interaction
-        personality = personality_core.adjust_personality(
-            message,
-            context.get('emotional_state', 'neutral')
-        )
-        
-        # Get personality elements
-        personality['elements'] = personality_core.get_personality_elements()
-        
-        # Create enhanced prompt
-        prompt = create_enhanced_prompt(message, context)
-        prompt = enhance_prompt_with_personality(prompt, personality)
-        
-        # Generate response
-        response = model.generate_content(prompt).text.strip()
-        
-        return response
-    except Exception as e:
-        print(f"Error in personality-enhanced response: {str(e)}")
-        return "I'm here to understand and support you. Could you share that again?"
+        # Add new request
+        rate_limit_store[client_ip].append(now)
+        return func(*args, **kwargs)
+    return wrapper
 
 # Admin authentication
 def admin_required(f):
@@ -1130,6 +1001,7 @@ def home():
     return render_template('index.html')
 
 @app.route('/get_response', methods=['POST'])
+@rate_limit
 def get_response():
     try:
         data = request.get_json()
@@ -1144,11 +1016,20 @@ def get_response():
         if not session_id:
             return jsonify({'error': 'Session ID is required'}), 400
         
-        # Run get_ai_response in a separate thread to handle async operation
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(get_ai_response(message, session_id))
-        loop.close()
+        # Create event loop in a thread-safe way
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        try:
+            # Run the async function in the event loop
+            response = loop.run_until_complete(get_ai_response(message, session_id))
+        finally:
+            # Clean up
+            loop.stop()
+            loop.close()
         
         if not response:
             return jsonify({'error': 'Failed to generate response'}), 500
@@ -1156,7 +1037,7 @@ def get_response():
         return jsonify({'response': response})
         
     except Exception as e:
-        print(f"Error in get_response: {str(e)}")
+        app.logger.error(f"Error in get_response: {str(e)}")
         return jsonify({
             'error': 'Internal server error',
             'message': str(e)
@@ -1178,6 +1059,23 @@ def handle_admin_connect():
     if not session.get('admin_logged_in'):
         return False
     emit('chat_history', chat_history)
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Resource not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log the error for debugging
+    app.logger.error(f'Unhandled exception: {str(e)}')
+    return jsonify({
+        'error': 'An unexpected error occurred',
+        'message': str(e)
+    }), 500
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
