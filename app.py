@@ -1130,7 +1130,7 @@ def home():
     return render_template('index.html')
 
 @app.route('/get_response', methods=['POST'])
-async def get_response():
+def get_response():
     try:
         data = request.get_json()
         if not data:
@@ -1144,7 +1144,12 @@ async def get_response():
         if not session_id:
             return jsonify({'error': 'Session ID is required'}), 400
         
-        response = await get_ai_response(message, session_id)
+        # Run get_ai_response in a separate thread to handle async operation
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(get_ai_response(message, session_id))
+        loop.close()
+        
         if not response:
             return jsonify({'error': 'Failed to generate response'}), 500
             
