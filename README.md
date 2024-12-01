@@ -1,4 +1,5 @@
 # Nirya AI Therapist 
+Last Updated: December 1, 2024
 
 A compassionate AI-powered mental health companion that provides emotional support and guidance.
 
@@ -54,7 +55,7 @@ pip install -r requirements.txt
 ```env
 GOOGLE_API_KEY=your_gemini_api_key
 FLASK_SECRET_KEY=your_secret_key
-ADMIN_USERNAME=admin
+ADMIN_USERNAME=your_admin_username
 ADMIN_PASSWORD_HASH=your_password_hash
 ```
 
@@ -65,9 +66,7 @@ python app.py
 
 ## Admin Access
 - URL: `/admin/login`
-- Default credentials:
-  - Username: admin
-  - Password: new_secure_admin_password_2024!
+- Please contact the administrator for login credentials
 
 ## Security Features
 - Secure session management
