@@ -99,6 +99,32 @@ header .subtitle {
     font-weight: 400;
 }
 
+/* Logo Styles */
+.logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.main-logo {
+    max-width: 150px;
+    max-height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.main-logo:hover {
+    transform: scale(1.05);
+}
+
+/* Dark mode logo adjustment */
+body.dark-mode .main-logo {
+    filter: brightness(0.9);
+}
+
 /* Chat Container */
 .chat-container {
     background: rgba(255, 255, 255, 0.95);
