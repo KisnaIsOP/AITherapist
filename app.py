@@ -1133,17 +1133,29 @@ def home():
 async def get_response():
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data received'}), 400
+            
         message = data.get('message', '')
         session_id = data.get('session_id', '')
         
-        if not message or not session_id:
-            return jsonify({'error': 'Missing message or session_id'}), 400
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
+        if not session_id:
+            return jsonify({'error': 'Session ID is required'}), 400
         
         response = await get_ai_response(message, session_id)
+        if not response:
+            return jsonify({'error': 'Failed to generate response'}), 500
+            
         return jsonify({'response': response})
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error in get_response: {str(e)}")
+        return jsonify({
+            'error': 'Internal server error',
+            'message': str(e)
+        }), 500
 
 # Periodic cleanup task
 def cleanup_task():

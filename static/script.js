@@ -8,6 +8,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let currentRating = 0;
     let conversationCount = 0;
+    let sessionId = localStorage.getItem('session_id') || Date.now().toString();
+    
+    // Store session ID
+    localStorage.setItem('session_id', sessionId);
 
     // Initialize engagement features
     const journalSection = document.querySelector('.journal-section');
@@ -57,12 +61,15 @@ document.addEventListener('DOMContentLoaded', function() {
         userInput.style.height = 'auto';
 
         try {
-            const response = await fetch('/chat', {
+            const response = await fetch('/get_response', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ message: message })
+                body: JSON.stringify({ 
+                    message: message,
+                    session_id: sessionId
+                })
             });
 
             const data = await response.json();
