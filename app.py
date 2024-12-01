@@ -258,9 +258,31 @@ class PersonalityProfile:
         self.communication_style = 'balanced'
         self.emotional_pattern = 'stable'
         self.interaction_history = []
-        self.topic_preferences = {}
-        self.response_patterns = {}
+        self.last_analysis = None
+        self.analysis_cooldown = 3  # Only analyze every 3 messages
         
+    def should_analyze(self):
+        """Determine if we should perform full analysis"""
+        if not self.last_analysis:
+            return True
+        return len(self.interaction_history) % self.analysis_cooldown == 0
+    
+    def quick_analysis(self, message):
+        """Lightweight message analysis"""
+        message_lower = message.lower()
+        
+        # Quick emotion check
+        for emotion, keywords in EMOTIONAL_PATTERNS['primary_emotions'].items():
+            if any(word in message_lower for word in keywords[:3]):  # Check only top keywords
+                self.emotional_pattern = emotion
+                break
+        
+        # Quick communication style check
+        for style, data in COMMUNICATION_STYLES.items():
+            if any(word in message_lower for word in data['keywords'][:3]):  # Check only top keywords
+                self.communication_style = style
+                break
+    
     def update_traits(self, message):
         """Update personality traits based on message content"""
         message_lower = message.lower()
@@ -311,25 +333,41 @@ class PersonalityProfile:
             self.emotional_pattern = max(emotion_scores.items(), key=lambda x: x[1]['score'])[0]
     
     def update_profile(self, message, response):
-        """Update the complete personality profile"""
-        self.update_traits(message)
-        self.analyze_communication_style(message)
-        self.analyze_emotional_pattern(message)
-        
-        # Update interaction history
-        self.interaction_history.append({
+        """Smart profile update with performance optimization"""
+        # Always store interaction
+        interaction = {
             'message': message,
             'response': response,
-            'traits': self.traits.copy(),
-            'style': self.communication_style,
-            'emotion': self.emotional_pattern,
             'timestamp': datetime.now().isoformat()
-        })
+        }
         
-        # Keep only recent history
+        # Decide analysis depth
+        if self.should_analyze():
+            # Full analysis
+            self.update_traits(message)
+            self.analyze_communication_style(message)
+            self.analyze_emotional_pattern(message)
+            self.last_analysis = datetime.now()
+            
+            # Add detailed analysis to interaction
+            interaction.update({
+                'traits': self.traits.copy(),
+                'style': self.communication_style,
+                'emotion': self.emotional_pattern
+            })
+        else:
+            # Quick analysis
+            self.quick_analysis(message)
+            interaction.update({
+                'style': self.communication_style,
+                'emotion': self.emotional_pattern
+            })
+        
+        # Update history
+        self.interaction_history.append(interaction)
         if len(self.interaction_history) > 10:
             self.interaction_history = self.interaction_history[-10:]
-    
+
     def get_response_guidance(self):
         """Generate response guidance based on current profile"""
         guidance = {
@@ -355,47 +393,40 @@ def get_ai_response(message, session_id):
         # Update last active time
         user.last_active = datetime.now()
 
-        # Detect tone and get personality guidance
+        # Quick tone detection
         current_tone = detect_tone(message)
+        
+        # Get profile guidance (cached or quick analysis)
         profile_guidance = user.personality_profile.get_response_guidance()
         
-        # Create enhanced context with personality insights
-        context = f"""You are Nirya, an empathetic AI mental health companion with expertise in psychology.
+        # Streamlined context
+        context = f"""You are Nirya, an empathetic AI mental health companion.
 
-        CURRENT USER PROFILE:
+        PROFILE:
         Tone: {current_tone}
-        Communication Style: {profile_guidance['style']}
-        Emotional State: {profile_guidance['emotion']}
+        Style: {profile_guidance['style']}
+        State: {profile_guidance['emotion']}
         
-        Personality Traits:
-        {', '.join(f'{trait}: {level}' for trait, level in profile_guidance['traits'].items())}
+        KEY TRAITS:
+        {', '.join(f'{t}:{l}' for t,l in list(profile_guidance['traits'].items())[:3])}
 
-        RESPONSE GUIDELINES:
-        1. Match their communication style: {COMMUNICATION_STYLES[user.personality_profile.communication_style]['response_style']}
-        2. Consider their emotional state: {user.personality_profile.emotional_pattern}
-        3. Adapt to their personality traits
-        4. Maintain therapeutic boundaries
-        5. Be genuine and empathetic
+        Guidelines: Match style, show empathy, be natural."""
 
-        Remember previous interactions and maintain conversation continuity."""
-
-        # Add conversation history
+        # Efficient history handling
         history = ""
         if user.personality_profile.interaction_history:
-            recent_history = user.personality_profile.interaction_history[-3:]
-            history = "\nRECENT INTERACTIONS:"
-            for interaction in recent_history:
-                history += f"\nUser ({interaction['emotion']}): {interaction['message']}"
-                history += f"\nNirya: {interaction['response']}"
+            recent = user.personality_profile.interaction_history[-2:]  # Only last 2 interactions
+            history = "\nRECENT:"
+            for i in recent:
+                history += f"\nU: {i['message']}\nN: {i['response']}"
 
-        # Create the complete prompt
-        prompt = f"{context}\n{history}\n\nUser: {message}\n\nRespond naturally and appropriately:"
+        prompt = f"{context}\n{history}\n\nUser: {message}\n\nRespond:"
 
         # Get response from Gemini
         response = model.generate_content(prompt)
         ai_response = response.text.strip()
         
-        # Update personality profile
+        # Update profile (with smart analysis)
         user.personality_profile.update_profile(message, ai_response)
         
         return ai_response
