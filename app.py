@@ -97,103 +97,307 @@ def log_interaction(user, message, response, emotions=None):
     
     return interaction
 
+# Tone detection patterns
+TONE_PATTERNS = {
+    'casual_happy': [
+        'haha', 'lol', 'xd', ':)', '😊', 'cool', 'awesome', 'nice', 'yay',
+        'fun', 'great', 'amazing', 'love it', 'excited', 'wow'
+    ],
+    'formal_academic': [
+        'study', 'research', 'theory', 'concept', 'psychology', 'understand',
+        'explain', 'definition', 'example', 'analysis'
+    ],
+    'emotional_sad': [
+        'sad', 'upset', 'crying', 'depressed', 'lonely', 'hurt', 'pain',
+        'tired', 'exhausted', 'worried', 'anxious', '😢', '😔'
+    ],
+    'emotional_angry': [
+        'angry', 'mad', 'frustrated', 'annoyed', 'hate', 'unfair', 
+        'terrible', 'worst', '😠', '😡'
+    ],
+    'seeking_help': [
+        'help', 'advice', 'suggestion', 'what should', 'how can i',
+        'need to', 'struggling', 'difficult'
+    ],
+    'casual_friendly': [
+        'hey', 'hi', 'hello', 'sup', 'whats up', 'how are you',
+        'thanks', 'thank you', 'appreciate'
+    ]
+}
+
+# Personality modes for different contexts
+PERSONALITY_MODES = {
+    'casual_happy': """Be cheerful and match their energy! Use casual language, emojis, and share their excitement.""",
+    'formal_academic': """Be professional and informative. Use academic language and provide clear explanations with examples.""",
+    'emotional_sad': """Be gentle and supportive. Use soft, comforting language and show deep empathy.""",
+    'emotional_angry': """Be calm and understanding. Acknowledge frustration and help process emotions constructively.""",
+    'seeking_help': """Be solution-focused. Listen actively and offer practical suggestions with encouragement.""",
+    'casual_friendly': """Be warm and conversational. Use friendly language while maintaining professionalism."""
+}
+
+def detect_tone(message):
+    """Detect the tone of the message based on keywords"""
+    message_lower = message.lower()
+    tone_scores = {}
+    
+    for tone, patterns in TONE_PATTERNS.items():
+        score = sum(1 for pattern in patterns if pattern in message_lower)
+        tone_scores[tone] = score
+    
+    # Get the dominant tone (highest score)
+    dominant_tone = max(tone_scores.items(), key=lambda x: x[1])
+    
+    # If no clear tone is detected, default to casual_friendly
+    if dominant_tone[1] == 0:
+        return 'casual_friendly'
+    
+    return dominant_tone[0]
+
+# Advanced personality and interaction patterns
+PERSONALITY_TRAITS = {
+    'openness': {
+        'high': ['curious', 'creative', 'artistic', 'imaginative', 'innovative', 'deep', 'complex', 'philosophical'],
+        'low': ['practical', 'conventional', 'straightforward', 'efficient', 'routine', 'simple']
+    },
+    'conscientiousness': {
+        'high': ['organized', 'responsible', 'disciplined', 'efficient', 'planned', 'thorough', 'detailed'],
+        'low': ['flexible', 'spontaneous', 'adaptable', 'easy-going', 'relaxed', 'casual']
+    },
+    'extraversion': {
+        'high': ['outgoing', 'energetic', 'enthusiastic', 'social', 'talkative', 'expressive'],
+        'low': ['quiet', 'reserved', 'reflective', 'thoughtful', 'calm', 'introspective']
+    },
+    'agreeableness': {
+        'high': ['kind', 'sympathetic', 'cooperative', 'warm', 'considerate', 'friendly'],
+        'low': ['direct', 'straightforward', 'honest', 'objective', 'frank']
+    },
+    'neuroticism': {
+        'high': ['sensitive', 'emotional', 'intense', 'passionate', 'expressive'],
+        'low': ['stable', 'calm', 'balanced', 'composed', 'steady']
+    }
+}
+
+# Communication style patterns
+COMMUNICATION_STYLES = {
+    'assertive': {
+        'keywords': ['need', 'want', 'think', 'believe', 'feel', 'prefer'],
+        'response_style': 'Direct and confident while maintaining respect'
+    },
+    'analytical': {
+        'keywords': ['why', 'how', 'what if', 'analyze', 'understand', 'explain'],
+        'response_style': 'Logical and detailed with supporting information'
+    },
+    'expressive': {
+        'keywords': ['amazing', 'awesome', 'love', 'hate', 'fantastic', 'terrible'],
+        'response_style': 'Enthusiastic and emotionally engaging'
+    },
+    'supportive': {
+        'keywords': ['help', 'support', 'please', 'thanks', 'appreciate', 'grateful'],
+        'response_style': 'Warm and encouraging with validation'
+    }
+}
+
+# Emotional intelligence patterns
+EMOTIONAL_PATTERNS = {
+    'primary_emotions': {
+        'joy': ['happy', 'excited', 'delighted', 'pleased', 'glad', 'content'],
+        'sadness': ['sad', 'down', 'upset', 'depressed', 'unhappy', 'blue'],
+        'anger': ['angry', 'mad', 'frustrated', 'irritated', 'annoyed'],
+        'fear': ['scared', 'afraid', 'worried', 'anxious', 'nervous'],
+        'surprise': ['shocked', 'amazed', 'astonished', 'unexpected'],
+        'disgust': ['disgusted', 'repulsed', 'revolted'],
+        'trust': ['trust', 'believe', 'confident', 'faith', 'sure'],
+        'anticipation': ['looking forward', 'excited about', 'cant wait', 'hoping']
+    },
+    'emotion_intensities': {
+        'low': ['slightly', 'a bit', 'somewhat', 'mildly'],
+        'medium': ['quite', 'rather', 'fairly', 'pretty'],
+        'high': ['very', 'extremely', 'incredibly', 'absolutely']
+    }
+}
+
+# Conversation context patterns
+CONTEXT_PATTERNS = {
+    'time_references': {
+        'past': ['was', 'did', 'had', 'used to', 'before', 'previously'],
+        'present': ['is', 'am', 'are', 'now', 'currently', 'these days'],
+        'future': ['will', 'going to', 'planning to', 'hope to', 'want to']
+    },
+    'relationship_indicators': {
+        'family': ['mom', 'dad', 'sister', 'brother', 'parent', 'family'],
+        'friends': ['friend', 'buddy', 'pal', 'mate', 'colleague'],
+        'romantic': ['partner', 'girlfriend', 'boyfriend', 'spouse', 'wife', 'husband'],
+        'professional': ['boss', 'coworker', 'teacher', 'student', 'client']
+    }
+}
+
+# Personality adaptation rules
+ADAPTATION_RULES = {
+    'matching': {
+        'energy_level': 'Match the user\'s energy level in responses',
+        'language_style': 'Mirror the user\'s vocabulary and sentence structure',
+        'emotional_tone': 'Reflect the user\'s emotional state appropriately',
+        'response_length': 'Match the typical length of user\'s messages'
+    },
+    'complementing': {
+        'support_level': 'Provide more support when user shows vulnerability',
+        'guidance_level': 'Offer more guidance when user seeks direction',
+        'engagement_level': 'Increase engagement when user seems withdrawn'
+    }
+}
+
+class PersonalityProfile:
+    def __init__(self):
+        self.traits = {
+            'openness': 0.5,
+            'conscientiousness': 0.5,
+            'extraversion': 0.5,
+            'agreeableness': 0.5,
+            'neuroticism': 0.5
+        }
+        self.communication_style = 'balanced'
+        self.emotional_pattern = 'stable'
+        self.interaction_history = []
+        self.topic_preferences = {}
+        self.response_patterns = {}
+        
+    def update_traits(self, message):
+        """Update personality traits based on message content"""
+        message_lower = message.lower()
+        
+        # Analyze for each trait
+        for trait, patterns in PERSONALITY_TRAITS.items():
+            # Check high markers
+            high_score = sum(1 for word in patterns['high'] if word in message_lower)
+            # Check low markers
+            low_score = sum(1 for word in patterns['low'] if word in message_lower)
+            
+            # Update trait score (weighted moving average)
+            if high_score > 0 or low_score > 0:
+                new_score = (high_score - low_score) / (high_score + low_score)
+                self.traits[trait] = 0.8 * self.traits[trait] + 0.2 * ((new_score + 1) / 2)
+    
+    def analyze_communication_style(self, message):
+        """Determine the dominant communication style"""
+        message_lower = message.lower()
+        style_scores = {}
+        
+        for style, data in COMMUNICATION_STYLES.items():
+            score = sum(1 for keyword in data['keywords'] if keyword in message_lower)
+            style_scores[style] = score
+        
+        # Get dominant style
+        if any(style_scores.values()):
+            self.communication_style = max(style_scores.items(), key=lambda x: x[1])[0]
+    
+    def analyze_emotional_pattern(self, message):
+        """Analyze emotional patterns in the message"""
+        message_lower = message.lower()
+        emotion_scores = {}
+        
+        # Check primary emotions
+        for emotion, keywords in EMOTIONAL_PATTERNS['primary_emotions'].items():
+            score = sum(1 for word in keywords if word in message_lower)
+            if score > 0:
+                # Check intensity
+                intensity = 'medium'
+                for level, markers in EMOTIONAL_PATTERNS['emotion_intensities'].items():
+                    if any(marker in message_lower for marker in markers):
+                        intensity = level
+                        break
+                emotion_scores[emotion] = {'score': score, 'intensity': intensity}
+        
+        if emotion_scores:
+            self.emotional_pattern = max(emotion_scores.items(), key=lambda x: x[1]['score'])[0]
+    
+    def update_profile(self, message, response):
+        """Update the complete personality profile"""
+        self.update_traits(message)
+        self.analyze_communication_style(message)
+        self.analyze_emotional_pattern(message)
+        
+        # Update interaction history
+        self.interaction_history.append({
+            'message': message,
+            'response': response,
+            'traits': self.traits.copy(),
+            'style': self.communication_style,
+            'emotion': self.emotional_pattern,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        # Keep only recent history
+        if len(self.interaction_history) > 10:
+            self.interaction_history = self.interaction_history[-10:]
+    
+    def get_response_guidance(self):
+        """Generate response guidance based on current profile"""
+        guidance = {
+            'style': COMMUNICATION_STYLES[self.communication_style]['response_style'],
+            'traits': {
+                trait: 'high' if score > 0.6 else 'low' if score < 0.4 else 'moderate'
+                for trait, score in self.traits.items()
+            },
+            'emotion': self.emotional_pattern
+        }
+        return guidance
+
 def get_ai_response(message, session_id):
     try:
-        # Get user context
+        # Get or create user context
         user = User.active_users.get(session_id)
         if not user:
             user = User(session_id=session_id)
+            user.personality_profile = PersonalityProfile()
+        elif not hasattr(user, 'personality_profile'):
+            user.personality_profile = PersonalityProfile()
         
         # Update last active time
         user.last_active = datetime.now()
 
-        # Enhanced context with personality and capabilities
-        context = """You are Nirya, an empathetic AI mental health companion with expertise in psychology. Your core traits:
+        # Detect tone and get personality guidance
+        current_tone = detect_tone(message)
+        profile_guidance = user.personality_profile.get_response_guidance()
+        
+        # Create enhanced context with personality insights
+        context = f"""You are Nirya, an empathetic AI mental health companion with expertise in psychology.
 
-        PERSONALITY:
-        - Warm and understanding, like a supportive friend
-        - Professional but not overly formal
-        - Patient and attentive to emotional nuances
-        - Knowledgeable about psychology concepts
-
-        CAPABILITIES:
-        1. Psychology Education:
-        - Explain concepts clearly with examples
-        - Focus on practical applications
-        - Use analogies for complex topics
-        - Cite key psychologists when relevant
-
-        2. Emotional Support:
-        - Validate feelings without judgment
-        - Reflect emotions with empathy
-        - Offer gentle encouragement
-        - Maintain appropriate boundaries
-
-        3. Conversation Style:
-        - Ask thoughtful follow-up questions
-        - Remember important details
-        - Acknowledge progress and insights
-        - Keep responses focused and relevant
+        CURRENT USER PROFILE:
+        Tone: {current_tone}
+        Communication Style: {profile_guidance['style']}
+        Emotional State: {profile_guidance['emotion']}
+        
+        Personality Traits:
+        {', '.join(f'{trait}: {level}' for trait, level in profile_guidance['traits'].items())}
 
         RESPONSE GUIDELINES:
-        - For personal issues: Focus on emotional support
-        - For academic questions: Provide clear, accurate information
-        - For general chat: Be engaging but professional
-        - If unsure: Ask clarifying questions
-        - Keep responses concise but meaningful"""
+        1. Match their communication style: {COMMUNICATION_STYLES[user.personality_profile.communication_style]['response_style']}
+        2. Consider their emotional state: {user.personality_profile.emotional_pattern}
+        3. Adapt to their personality traits
+        4. Maintain therapeutic boundaries
+        5. Be genuine and empathetic
 
-        # Enhanced history tracking with emotion and topic context
+        Remember previous interactions and maintain conversation continuity."""
+
+        # Add conversation history
         history = ""
-        if hasattr(user, 'chat_history') and user.chat_history:
-            recent_history = user.chat_history[-3:]
-            history = "\nRECENT CONVERSATION CONTEXT:"
-            for chat in recent_history:
-                history += f"\nUser: {chat['message']}"
-                history += f"\nNirya: {chat['response']}"
-                # Try to extract emotion/topic for context
-                if 'emotion' in chat:
-                    history += f"\n[Noted emotion: {chat['emotion']}]"
-                if 'topic' in chat:
-                    history += f"\n[Discussion topic: {chat['topic']}]"
-            history += "\n"
+        if user.personality_profile.interaction_history:
+            recent_history = user.personality_profile.interaction_history[-3:]
+            history = "\nRECENT INTERACTIONS:"
+            for interaction in recent_history:
+                history += f"\nUser ({interaction['emotion']}): {interaction['message']}"
+                history += f"\nNirya: {interaction['response']}"
 
-        # Analyze current message for better context
-        message_lower = message.lower()
-        current_context = ""
-        
-        # Detect if it's a psychology question
-        psych_keywords = ['psychology', 'theory', 'concept', 'study', 'research', 'experiment']
-        if any(keyword in message_lower for keyword in psych_keywords):
-            current_context = "\n[Context: Academic psychology question]"
-        
-        # Detect if it's emotional sharing
-        emotion_keywords = ['feel', 'feeling', 'sad', 'happy', 'angry', 'worried', 'stressed']
-        if any(keyword in message_lower for keyword in emotion_keywords):
-            current_context = "\n[Context: Emotional sharing]"
-
-        # Create the complete prompt with enhanced context
-        prompt = f"{context}\n{history}\nCurrent context:{current_context}\n\nUser: {message}\n\nNirya's response:"
+        # Create the complete prompt
+        prompt = f"{context}\n{history}\n\nUser: {message}\n\nRespond naturally and appropriately:"
 
         # Get response from Gemini
         response = model.generate_content(prompt)
         ai_response = response.text.strip()
         
-        # Extract potential emotion/topic for future context
-        chat_entry = {
-            'message': message,
-            'response': ai_response,
-            'timestamp': datetime.now().isoformat()
-        }
+        # Update personality profile
+        user.personality_profile.update_profile(message, ai_response)
         
-        # Update user's chat history
-        if not hasattr(user, 'chat_history'):
-            user.chat_history = []
-        user.chat_history.append(chat_entry)
-        
-        # Keep only last 5 messages in user history
-        if len(user.chat_history) > 5:
-            user.chat_history = user.chat_history[-5:]
-
         return ai_response
 
     except Exception as e:
