@@ -9,6 +9,15 @@ import random
 import json
 from datetime import datetime, timedelta
 from flask_socketio import SocketIO, emit
+from collections import defaultdict
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+import re
+from datetime import datetime, timedelta
+import json
+from typing import Dict, List, Optional, Tuple, Union
+import threading
 
 load_dotenv()
 
@@ -380,56 +389,256 @@ class PersonalityProfile:
         }
         return guidance
 
-def get_ai_response(message, session_id):
+# Advanced AI Response Optimization System
+class ResponseCache:
+    def __init__(self, max_size=1000):
+        self.cache = {}
+        self.max_size = max_size
+        self.lock = threading.Lock()
+        self.hits = 0
+        self.misses = 0
+        
+    def get(self, key: str) -> Optional[str]:
+        with self.lock:
+            if key in self.cache:
+                self.hits += 1
+                item = self.cache[key]
+                if datetime.now() - item['timestamp'] < timedelta(hours=1):
+                    return item['response']
+                else:
+                    del self.cache[key]
+            self.misses += 1
+            return None
+    
+    def set(self, key: str, value: str) -> None:
+        with self.lock:
+            if len(self.cache) >= self.max_size:
+                oldest = min(self.cache.items(), key=lambda x: x[1]['timestamp'])
+                del self.cache[oldest[0]]
+            self.cache[key] = {
+                'response': value,
+                'timestamp': datetime.now()
+            }
+    
+    def get_stats(self) -> Dict:
+        return {
+            'size': len(self.cache),
+            'hits': self.hits,
+            'misses': self.misses,
+            'hit_ratio': self.hits / (self.hits + self.misses) if (self.hits + self.misses) > 0 else 0
+        }
+
+class PatternMatcher:
+    def __init__(self):
+        self.patterns = defaultdict(list)
+        self.compiled_patterns = {}
+        
+    def add_pattern(self, category: str, pattern: str, weight: float = 1.0):
+        self.patterns[category].append((pattern, weight))
+        self.compiled_patterns[pattern] = re.compile(pattern, re.IGNORECASE)
+    
+    @lru_cache(maxsize=1000)
+    def match(self, text: str, category: str) -> float:
+        score = 0.0
+        for pattern, weight in self.patterns[category]:
+            if self.compiled_patterns[pattern].search(text):
+                score += weight
+        return score
+
+class ContextManager:
+    def __init__(self, max_contexts=100):
+        self.contexts = {}
+        self.max_contexts = max_contexts
+        self.lock = threading.Lock()
+        
+    def add_context(self, session_id: str, context: Dict):
+        with self.lock:
+            if len(self.contexts) >= self.max_contexts:
+                oldest = min(self.contexts.items(), key=lambda x: x[1]['timestamp'])
+                del self.contexts[oldest[0]]
+            self.contexts[session_id] = {
+                'data': context,
+                'timestamp': datetime.now()
+            }
+    
+    def get_context(self, session_id: str) -> Optional[Dict]:
+        with self.lock:
+            if session_id in self.contexts:
+                return self.contexts[session_id]['data']
+        return None
+
+class ResponseGenerator:
+    def __init__(self):
+        self.cache = ResponseCache()
+        self.pattern_matcher = PatternMatcher()
+        self.context_manager = ContextManager()
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        self._init_patterns()
+        
+    def _init_patterns(self):
+        # Emotional Patterns
+        for emotion, patterns in EMOTIONAL_PATTERNS['primary_emotions'].items():
+            for pattern in patterns:
+                self.pattern_matcher.add_pattern('emotion', pattern, 1.0)
+        
+        # Communication Patterns
+        for style, data in COMMUNICATION_STYLES.items():
+            for pattern in data['keywords']:
+                self.pattern_matcher.add_pattern('communication', pattern, 1.0)
+        
+        # Personality Patterns
+        for trait, patterns in PERSONALITY_TRAITS.items():
+            for pattern_list in patterns.values():
+                for pattern in pattern_list:
+                    self.pattern_matcher.add_pattern('personality', pattern, 0.8)
+    
+    @lru_cache(maxsize=100)
+    def _generate_cache_key(self, message: str, context: Dict) -> str:
+        # Generate a unique key based on message and essential context
+        key_parts = [
+            message.lower(),
+            context.get('tone', ''),
+            context.get('style', ''),
+            context.get('emotion', '')
+        ]
+        return '_'.join(key_parts)
+    
+    async def _analyze_message_async(self, message: str) -> Dict:
+        # Parallel pattern matching
+        tasks = []
+        for category in ['emotion', 'communication', 'personality']:
+            tasks.append(
+                asyncio.get_event_loop().run_in_executor(
+                    self.executor,
+                    self.pattern_matcher.match,
+                    message,
+                    category
+                )
+            )
+        scores = await asyncio.gather(*tasks)
+        return {
+            'emotion_score': scores[0],
+            'communication_score': scores[1],
+            'personality_score': scores[2]
+        }
+    
+    def _prepare_response_context(self, analysis: Dict, profile: Dict) -> Dict:
+        return {
+            'tone': profile.get('tone', 'neutral'),
+            'style': profile.get('style', 'balanced'),
+            'emotion': profile.get('emotion', 'neutral'),
+            'analysis': analysis
+        }
+    
+    async def generate_response(self, message: str, session_id: str, profile: Dict) -> str:
+        # Check cache first
+        cache_key = self._generate_cache_key(message, profile)
+        cached_response = self.cache.get(cache_key)
+        if cached_response:
+            return cached_response
+        
+        # Parallel analysis
+        analysis = await self._analyze_message_async(message)
+        
+        # Prepare context
+        context = self._prepare_response_context(analysis, profile)
+        self.context_manager.add_context(session_id, context)
+        
+        # Generate response using Gemini
+        response = model.generate_content(self._create_prompt(message, context)).text.strip()
+        
+        # Cache the response
+        self.cache.set(cache_key, response)
+        
+        return response
+    
+    def _create_prompt(self, message: str, context: Dict) -> str:
+        return f"""You are Nirya, an empathetic AI companion.
+
+        CONTEXT:
+        Tone: {context['tone']}
+        Style: {context['style']}
+        Emotion: {context['emotion']}
+
+        ANALYSIS:
+        Emotion Score: {context['analysis']['emotion_score']:.2f}
+        Communication Score: {context['analysis']['communication_score']:.2f}
+        Personality Score: {context['analysis']['personality_score']:.2f}
+
+        User: {message}
+
+        Respond:"""
+
+# Initialize global response system
+response_system = ResponseGenerator()
+
+class UserSession:
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.personality_profile = PersonalityProfile()
+        self.last_active = datetime.now()
+        self.interaction_count = 0
+        self.response_times = []
+        
+    def update_metrics(self, response_time: float):
+        self.interaction_count += 1
+        self.response_times.append(response_time)
+        if len(self.response_times) > 10:
+            self.response_times.pop(0)
+    
+    def get_average_response_time(self) -> float:
+        if not self.response_times:
+            return 0.0
+        return sum(self.response_times) / len(self.response_times)
+
+class SessionManager:
+    def __init__(self):
+        self.sessions = {}
+        self.lock = threading.Lock()
+        
+    def get_session(self, session_id: str) -> UserSession:
+        with self.lock:
+            if session_id not in self.sessions:
+                self.sessions[session_id] = UserSession(session_id)
+            return self.sessions[session_id]
+    
+    def cleanup_old_sessions(self, max_age_hours: int = 24):
+        with self.lock:
+            current_time = datetime.now()
+            for session_id in list(self.sessions.keys()):
+                session = self.sessions[session_id]
+                if (current_time - session.last_active).total_seconds() > max_age_hours * 3600:
+                    del self.sessions[session_id]
+
+# Initialize global session manager
+session_manager = SessionManager()
+
+async def get_ai_response(message: str, session_id: str) -> str:
     try:
-        # Get or create user context
-        user = User.active_users.get(session_id)
-        if not user:
-            user = User(session_id=session_id)
-            user.personality_profile = PersonalityProfile()
-        elif not hasattr(user, 'personality_profile'):
-            user.personality_profile = PersonalityProfile()
+        start_time = datetime.now()
         
-        # Update last active time
-        user.last_active = datetime.now()
-
-        # Quick tone detection
-        current_tone = detect_tone(message)
+        # Get or create session
+        session = session_manager.get_session(session_id)
+        session.last_active = datetime.now()
         
-        # Get profile guidance (cached or quick analysis)
-        profile_guidance = user.personality_profile.get_response_guidance()
+        # Get profile and generate response
+        profile = {
+            'tone': detect_tone(message),
+            'style': session.personality_profile.communication_style,
+            'emotion': session.personality_profile.emotional_pattern
+        }
         
-        # Streamlined context
-        context = f"""You are Nirya, an empathetic AI mental health companion.
-
-        PROFILE:
-        Tone: {current_tone}
-        Style: {profile_guidance['style']}
-        State: {profile_guidance['emotion']}
+        response = await response_system.generate_response(message, session_id, profile)
         
-        KEY TRAITS:
-        {', '.join(f'{t}:{l}' for t,l in list(profile_guidance['traits'].items())[:3])}
-
-        Guidelines: Match style, show empathy, be natural."""
-
-        # Efficient history handling
-        history = ""
-        if user.personality_profile.interaction_history:
-            recent = user.personality_profile.interaction_history[-2:]  # Only last 2 interactions
-            history = "\nRECENT:"
-            for i in recent:
-                history += f"\nU: {i['message']}\nN: {i['response']}"
-
-        prompt = f"{context}\n{history}\n\nUser: {message}\n\nRespond:"
-
-        # Get response from Gemini
-        response = model.generate_content(prompt)
-        ai_response = response.text.strip()
+        # Update metrics
+        end_time = datetime.now()
+        response_time = (end_time - start_time).total_seconds()
+        session.update_metrics(response_time)
         
-        # Update profile (with smart analysis)
-        user.personality_profile.update_profile(message, ai_response)
+        # Update profile
+        session.personality_profile.update_profile(message, response)
         
-        return ai_response
+        return response
 
     except Exception as e:
         print(f"Error in get_ai_response: {str(e)}")
@@ -477,42 +686,31 @@ def home():
         return render_template('index.html', initial_question=random.choice(["I'm here to listen and support you. What brings you here today?", "Before we begin, how are you feeling right now? Take your time to share.", "I'd love to understand what's been going on for you lately. What would you like to explore?", "Thank you for reaching out. What's been on your mind that you'd like to discuss?"]))
     return render_template('index.html')
 
-@app.route('/chat', methods=['POST'])
-def chat():
+@app.route('/get_response', methods=['POST'])
+async def get_response():
     try:
         data = request.get_json()
-        user_message = data.get('message', '')
-        session_id = session.get('session_id')
-
-        # Get AI response
-        response = get_ai_response(user_message, session_id)
+        message = data.get('message', '')
+        session_id = data.get('session_id', '')
         
-        # Create chat entry with minimal data
-        chat_entry = {
-            'session_id': session_id[:8],  # Only store first 8 chars of session ID
-            'message': user_message,
-            'response': response,
-            'timestamp': datetime.now().isoformat()
-        }
+        if not message or not session_id:
+            return jsonify({'error': 'Missing message or session_id'}), 400
         
-        # Add to chat history with size limit
-        chat_history.append(chat_entry)
-        if len(chat_history) > MAX_CHAT_HISTORY:
-            chat_history.pop(0)
-        
-        # Emit to admin panel
-        socketio.emit('new_chat', chat_entry, namespace='/admin')
-        
+        response = await get_ai_response(message, session_id)
         return jsonify({'response': response})
-
+        
     except Exception as e:
-        print(f"Error in chat endpoint: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/admin/analytics')
-@admin_required
-def admin_analytics():
-    return render_template('admin/analytics.html', chat_history=chat_history)
+# Periodic cleanup task
+def cleanup_task():
+    while True:
+        session_manager.cleanup_old_sessions()
+        asyncio.sleep(3600)  # Run every hour
+
+# Start cleanup task
+cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
+cleanup_thread.start()
 
 # WebSocket events
 @socketio.on('connect', namespace='/admin')
