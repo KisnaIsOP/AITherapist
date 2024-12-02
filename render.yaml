@@ -1,0 +1,28 @@
+services:
+- type: web
+  name: nirya-ai-therapist
+  env: python
+  region: oregon
+  plan: free
+  buildCommand: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+  startCommand: |
+    gunicorn -c gunicorn_config.py app:app
+  envVars:
+    - key: PYTHON_VERSION
+      value: 3.11.6
+    - key: FLASK_ENV
+      value: production
+    - key: SECRET_KEY
+      generateValue: true
+    - key: MAX_MEMORY_MB
+      value: 512
+    - key: MAX_CPU_PERCENTAGE
+      value: 10
+  autoDeploy: true
+  healthCheckPath: /
+  disk:
+    name: nirya-storage
+    size: 1  # GB
+    mountPath: /tmp

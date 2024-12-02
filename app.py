@@ -26,6 +26,10 @@ from quart import Quart
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
 import collections
+import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
+import langdetect
+from typing import Dict, List, Optional
 
 load_dotenv()
 
@@ -1395,40 +1399,403 @@ def rate_limit(func):
         return func(*args, **kwargs)
     return wrapper
 
-# Admin authentication
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('admin_logged_in'):
-            return redirect(url_for('admin_login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.route('/admin/login', methods=['GET', 'POST'])
-def admin_login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        
-        # Hash the password for comparison
-        hashed_password = hashlib.sha256(password.encode()).hexdigest()
-        
-        # Get admin credentials from environment variables
-        admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-        admin_password = os.getenv('ADMIN_PASSWORD_HASH')  # Store the hash in .env
-        
-        if username == admin_username and hashed_password == admin_password:
-            session['admin_logged_in'] = True
-            return redirect(url_for('admin_analytics'))
-        else:
-            return render_template('admin/login.html', error="Invalid credentials")
+# Session and Privacy Management
+class PrivacyManager:
+    def __init__(self):
+        # Anonymized session tracking
+        self._active_sessions = {}
+        self._session_duration = 3600  # 1 hour session
     
-    return render_template('admin/login.html')
+    def create_anonymous_session(self):
+        """
+        Create a new anonymous, privacy-focused session
+        
+        Returns:
+            str: Anonymized session ID
+        """
+        session_id = secrets.token_urlsafe(16)
+        current_time = time.time()
+        
+        self._active_sessions[session_id] = {
+            'created_at': current_time,
+            'last_active': current_time,
+            'interaction_count': 0,
+            'consent_given': False
+        }
+        
+        return session_id
+    
+    def update_session(self, session_id, interaction_type=None):
+        """
+        Update session metadata with minimal tracking
+        
+        Args:
+            session_id (str): Anonymous session identifier
+            interaction_type (str, optional): Type of interaction
+        """
+        if session_id not in self._active_sessions:
+            return False
+        
+        session = self._active_sessions[session_id]
+        session['last_active'] = time.time()
+        
+        if interaction_type:
+            session['interaction_count'] += 1
+        
+        return True
+    
+    def is_session_valid(self, session_id):
+        """
+        Check if session is still valid
+        
+        Args:
+            session_id (str): Anonymous session identifier
+        
+        Returns:
+            bool: Whether session is active
+        """
+        if session_id not in self._active_sessions:
+            return False
+        
+        session = self._active_sessions[session_id]
+        current_time = time.time()
+        
+        # Check session expiration
+        if current_time - session['created_at'] > self._session_duration:
+            del self._active_sessions[session_id]
+            return False
+        
+        return True
+    
+    def request_user_consent(self, session_id):
+        """
+        Request and track user data consent
+        
+        Args:
+            session_id (str): Anonymous session identifier
+        
+        Returns:
+            dict: Consent status and options
+        """
+        if session_id not in self._active_sessions:
+            return {
+                'status': 'error',
+                'message': 'Invalid session'
+            }
+        
+        return {
+            'status': 'consent_required',
+            'options': [
+                'Anonymous interaction',
+                'Basic data tracking',
+                'Comprehensive interaction analysis'
+            ]
+        }
+    
+    def update_user_consent(self, session_id, consent_level):
+        """
+        Update user consent preferences
+        
+        Args:
+            session_id (str): Anonymous session identifier
+            consent_level (str): User's consent preference
+        
+        Returns:
+            bool: Whether consent was successfully updated
+        """
+        if session_id not in self._active_sessions:
+            return False
+        
+        session = self._active_sessions[session_id]
+        session['consent_given'] = True
+        session['consent_level'] = consent_level
+        
+        return True
 
-@app.route('/admin/logout')
-def admin_logout():
-    session.pop('admin_logged_in', None)
-    return redirect(url_for('admin_login'))
+# Initialize privacy manager
+privacy_manager = PrivacyManager()
+
+class LightweightNLPEngine:
+    def __init__(self):
+        # Emotion and context tracking
+        self._conversation_state = {
+            'recent_messages': collections.deque(maxlen=5),
+            'emotion_history': collections.deque(maxlen=3),
+            'topic_context': None,
+            'last_response_type': None
+        }
+        
+        # More nuanced conversation patterns
+        self._conversation_patterns = {
+            'emotional_exploration': [
+                "It sounds like you're experiencing something complex.",
+                "I'm listening and want to understand more.",
+                "Your feelings are valid and important."
+            ],
+            'curiosity_prompts': [
+                "Can you tell me more about that?",
+                "What's going through your mind right now?",
+                "I'm interested in understanding your experience."
+            ],
+            'empathetic_responses': [
+                "That must be challenging for you.",
+                "It's okay to feel the way you're feeling.",
+                "Your experience is unique and meaningful."
+            ]
+        }
+    
+    def _avoid_repetition(self, response_type):
+        """Prevent repeating the same type of response"""
+        if self._conversation_state['last_response_type'] == response_type:
+            return random.choice([
+                "I hear you.",
+                "Tell me more.",
+                "I'm listening carefully."
+            ])
+        return None
+    
+    def generate_contextual_response(self, message: str) -> str:
+        """
+        Generate a more natural, context-aware response
+        
+        Args:
+            message (str): User's message
+        
+        Returns:
+            str: Contextually appropriate response
+        """
+        # Update conversation history
+        self._conversation_state['recent_messages'].append(message.lower())
+        
+        # Detect repetitive or stuck conversation
+        if self._is_conversation_stuck():
+            return self._handle_stuck_conversation()
+        
+        # Detect specific conversation contexts
+        if self._is_emotional_sharing(message):
+            response = self._avoid_repetition('emotional') or random.choice(
+                self._conversation_patterns['emotional_exploration']
+            )
+            self._conversation_state['last_response_type'] = 'emotional'
+            return response
+        
+        # Handle curiosity and exploration
+        if self._needs_further_exploration(message):
+            response = self._avoid_repetition('curiosity') or random.choice(
+                self._conversation_patterns['curiosity_prompts']
+            )
+            self._conversation_state['last_response_type'] = 'curiosity'
+            return response
+        
+        # Default empathetic response
+        response = self._avoid_repetition('empathy') or random.choice(
+            self._conversation_patterns['empathetic_responses']
+        )
+        self._conversation_state['last_response_type'] = 'empathy'
+        return response
+    
+    def _is_conversation_stuck(self) -> bool:
+        """
+        Detect if the conversation is repeating or stagnant
+        
+        Returns:
+            bool: Whether conversation is stuck
+        """
+        if len(self._conversation_state['recent_messages']) < 3:
+            return False
+        
+        # Check for repeated messages or circular conversation
+        messages = list(self._conversation_state['recent_messages'])
+        return (
+            len(set(messages[-3:])) <= 1 or  # Repeated messages
+            any('why' in msg and 'change' in msg for msg in messages[-3:])  # Frustration signals
+        )
+    
+    def _handle_stuck_conversation(self) -> str:
+        """
+        Handle situations where conversation is not progressing
+        
+        Returns:
+            str: Response to break conversational deadlock
+        """
+        return random.choice([
+            "I notice we might be going in circles. Would you like to approach this differently?",
+            "Sometimes conversations can feel challenging. What would help you feel more comfortable?",
+            "Let's take a step back. Is there a specific feeling or thought you'd like to explore?"
+        ])
+    
+    def _is_emotional_sharing(self, message: str) -> bool:
+        """
+        Detect if the message involves emotional sharing
+        
+        Args:
+            message (str): User's message
+        
+        Returns:
+            bool: Whether message indicates emotional sharing
+        """
+        emotional_keywords = [
+            'feel', 'feeling', 'emotion', 'sad', 'happy', 'angry', 
+            'stressed', 'anxious', 'depressed', 'low'
+        ]
+        return any(keyword in message.lower() for keyword in emotional_keywords)
+    
+    def _needs_further_exploration(self, message: str) -> bool:
+        """
+        Detect if the message needs more context or exploration
+        
+        Args:
+            message (str): User's message
+        
+        Returns:
+            bool: Whether message needs further exploration
+        """
+        exploration_signals = [
+            'i dont know', 'idk', 'not sure', 'maybe', 
+            'sometimes', 'random', 'out of nowhere'
+        ]
+        return any(signal in message.lower() for signal in exploration_signals)
+
+# Initialize lightweight NLP engine
+lightweight_nlp_engine = LightweightNLPEngine()
+
+def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
+    """
+    Generate enhanced, context-aware response
+    
+    Args:
+        message (str): User's message
+        session_id (str): Current session ID
+        context (dict): Conversation context
+    
+    Returns:
+        str: Enhanced response
+    """
+    try:
+        # Use lightweight NLP for response generation
+        response = lightweight_nlp_engine.generate_contextual_response(message)
+        
+        # Update privacy manager session
+        privacy_manager.update_session(session_id, 'text_interaction')
+        
+        return response
+    
+    except Exception as e:
+        app.logger.error(f"Response generation error: {e}")
+        return "I'm here to listen. Would you like to share more?"
+
+# Modify get_response route to use new NLP engine
+@app.route('/get_response', methods=['POST'])
+def get_response():
+    """
+    Handle conversation responses with lightweight NLP
+    """
+    data = request.json
+    message = data.get('message', '')
+    session_id = data.get('session_id')
+    
+    # Validate session
+    if not privacy_manager.is_session_valid(session_id):
+        return jsonify({
+            'status': 'error',
+            'message': 'Invalid or expired session'
+        }), 400
+    
+    # Generate response
+    response = generate_enhanced_response(message, session_id, {})
+    
+    return jsonify({
+        'response': response,
+        'session_id': session_id
+    })
+
+class ConversationManager:
+    def __init__(self):
+        self._context = {
+            'messages': collections.deque(maxlen=10),
+            'emotional_states': collections.deque(maxlen=5),
+            'current_topic': None
+        }
+        
+        self._response_strategies = {
+            'emotional_support': [
+                "I hear you and your feelings are valid.",
+                "It's okay to feel the way you're feeling right now.",
+                "Your experience matters, and I'm here to listen.",
+                "Thank you for sharing something so personal."
+            ],
+            'curiosity_deepening': [
+                "Can you tell me a bit more about that?",
+                "What's going through your mind when you say that?",
+                "Help me understand what this means to you.",
+                "I'm interested in hearing more about your perspective."
+            ]
+        }
+    
+    def _analyze_emotional_context(self, message):
+        """Lightweight emotional context detection"""
+        emotional_keywords = {
+            'stress': ['stress', 'pressure', 'overwhelmed'],
+            'sadness': ['sad', 'down', 'low'],
+            'confusion': ['confused', 'unsure', 'unclear'],
+            'curiosity': ['wonder', 'curious', 'interested']
+        }
+        
+        message_lower = message.lower()
+        for emotion, keywords in emotional_keywords.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return emotion
+        return 'neutral'
+    
+    def generate_response(self, message):
+        """Generate contextually aware response"""
+        # Detect emotional context
+        emotional_state = self._analyze_emotional_context(message)
+        self._context['emotional_states'].append(emotional_state)
+        
+        # Select response strategy
+        if emotional_state in ['stress', 'sadness']:
+            response = random.choice(self._response_strategies['emotional_support'])
+        elif emotional_state in ['confusion', 'curiosity']:
+            response = random.choice(self._response_strategies['curiosity_deepening'])
+        else:
+            response = random.choice([
+                "I'm listening.",
+                "Tell me more about what you're experiencing.",
+                "Your perspective is important."
+            ])
+        
+        # Update conversation context
+        self._context['messages'].append({
+            'text': message,
+            'emotional_state': emotional_state
+        })
+        
+        return response
+
+# Global conversation manager
+conversation_manager = ConversationManager()
+
+def generate_response(message, session_id=None):
+    """Primary response generation function"""
+    try:
+        response = conversation_manager.generate_response(message)
+        return response
+    except Exception as e:
+        app.logger.error(f"Response generation error: {e}")
+        return "I'm here to listen. Would you like to share more?"
+
+# Update chat endpoint
+@app.route('/chat', methods=['POST'])
+def chat_endpoint():
+    data = request.json
+    message = data.get('message', '')
+    
+    if not message:
+        return jsonify({"error": "No message provided"}), 400
+    
+    response = generate_response(message)
+    return jsonify({"response": response})
 
 @app.route('/')
 def home():
@@ -1460,54 +1827,6 @@ def home():
         ]
         return render_template('index.html', initial_question=random.choice(INITIAL_CONVERSATION_EMPATHY))
     return render_template('index.html')
-
-@app.route('/get_response', methods=['POST'])
-@rate_limit
-def get_response():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No JSON data received'}), 400
-            
-        message = data.get('message', '')
-        session_id = data.get('session_id', '')
-        
-        if not message:
-            return jsonify({'error': 'Message is required'}), 400
-        if not session_id:
-            return jsonify({'error': 'Session ID is required'}), 400
-        
-        # Get AI response synchronously
-        response = get_ai_response(message, session_id)
-        
-        if not response:
-            return jsonify({'error': 'Failed to generate response'}), 500
-            
-        return jsonify({'response': response})
-        
-    except Exception as e:
-        app.logger.error(f"Error in get_response: {str(e)}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
-
-# Periodic cleanup task
-def cleanup_task():
-    while True:
-        session_manager.cleanup_old_sessions()
-        time.sleep(3600)  # Run every hour
-
-# Start cleanup task
-cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
-cleanup_thread.start()
-
-# WebSocket events
-@socketio.on('connect', namespace='/admin')
-def handle_admin_connect():
-    if not session.get('admin_logged_in'):
-        return False
-    emit('chat_history', chat_history)
 
 @app.errorhandler(404)
 def not_found_error(error):
@@ -1557,10 +1876,9 @@ class UltraLightConversationEngine:
                 "What kind of support would be most helpful right now?"
             ],
             'explorative': [
-                "Could you tell me more about what's on your mind?",
-                "What aspects of this situation affect you the most?",
-                "How has this been impacting you?",
-                "What thoughts come up when you think about this?"
+                "Could you tell me more about that?",
+                "What's going through your mind right now?",
+                "I'm interested in understanding your experience."
             ],
             'grounding': [
                 "Let's take a moment to focus on what you're feeling right now",
@@ -1649,6 +1967,7 @@ class EfficientSessionManager:
         self._sessions = {}
         self._max_sessions = max_sessions
         self._last_accessed = collections.OrderedDict()
+        self._login_attempts = {}
     
     def create_session(self, session_id: str):
         """
@@ -1684,11 +2003,52 @@ class EfficientSessionManager:
             
             # Update access order
             self._last_accessed[session_id] = time.time()
+    
+    def is_login_allowed(self, username: str) -> bool:
+        """
+        Check if login is allowed based on previous attempts
+        
+        Args:
+            username (str): Username attempting to log in
+        """
+        if username not in self._login_attempts:
+            self._login_attempts[username] = []
+        
+        # Check if there have been too many recent attempts
+        recent_attempts = [
+            attempt for attempt in self._login_attempts[username]
+            if time.time() - attempt < 300  # 5 minutes
+        ]
+        
+        if len(recent_attempts) >= 5:
+            return False
+        
+        return True
+    
+    def record_successful_login(self, username: str):
+        """
+        Record a successful login attempt
+        
+        Args:
+            username (str): Username that logged in successfully
+        """
+        if username in self._login_attempts:
+            self._login_attempts[username] = []
+    
+    def record_failed_login(self, username: str):
+        """
+        Record a failed login attempt
+        
+        Args:
+            username (str): Username that failed to log in
+        """
+        if username not in self._login_attempts:
+            self._login_attempts[username] = []
+        
+        self._login_attempts[username].append(time.time())
 
 # Initialize efficient session manager
 efficient_session_manager = EfficientSessionManager()
-
-ultra_light_conversation_engine = UltraLightConversationEngine()
 
 if __name__ == '__main__':
     config = Config()
