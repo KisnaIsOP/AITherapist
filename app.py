@@ -1073,4 +1073,5 @@ def handle_exception(e):
 if __name__ == '__main__':
     config = Config()
     config.bind = ["0.0.0.0:5000"]
+    app.config['SECRET_KEY'] = os.urandom(24).hex()
     asyncio.run(serve(app, config))
