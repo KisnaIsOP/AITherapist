@@ -10,6 +10,7 @@ flask-socketio==5.3.6
 cachetools==5.3.2
 python-socketio[client]==5.11.4
 python-engineio[client]==4.8.0
+google-generativeai==0.3.2
 
 # Minimal testing requirements
 pytest==7.4.3

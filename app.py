@@ -29,6 +29,7 @@ import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 import langdetect
 from typing import Dict, List, Optional
+import google.generativeai as genai
 
 load_dotenv()
 
@@ -61,10 +62,10 @@ socketio = SocketIO(
 
 # Configure Gemini AI
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-# genai.configure(api_key=GOOGLE_API_KEY)  # Commented out
+genai.configure(api_key=GOOGLE_API_KEY)  # Uncommented
 
 # Initialize Gemini AI model
-# model = genai.GenerativeModel('gemini-pro')  # Commented out
+model = genai.GenerativeModel('gemini-pro')  # Uncommented
 
 # Store chat history in memory (limit to last 25 chats for better memory usage)
 MAX_CHAT_HISTORY = 25
@@ -561,12 +562,12 @@ class ResponseGenerator:
         self.context_manager.add_context(session_id, context)
         
         # Generate response using Gemini
-        # response = model.generate_content(self._create_prompt(message, context)).text.strip()
+        response = model.generate_content(self._create_prompt(message, context)).text.strip()
         
         # Cache the response
-        # self.cache.set(cache_key, response)
+        self.cache.set(cache_key, response)
         
-        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+        return response
 
     def _create_prompt(self, message: str, context: Dict) -> str:
         return f"""You are Nirya, an empathetic AI companion.
@@ -918,13 +919,9 @@ def generate_ai_response(prompt: str) -> str:
     """Generate AI response using the most appropriate method"""
     try:
         # Use the most suitable AI generation method
-        # response = response_system.generate_response(prompt, {
-        #     'tone': 'empathetic',
-        #     'style': 'supportive',
-        #     'depth': 'reflective'
-        # })
+        response = model.generate_content(prompt).text.strip()
         
-        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+        return response
     except Exception as e:
         app.logger.error(f"Error in generate_ai_response: {str(e)}")
         return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
@@ -1227,13 +1224,9 @@ def generate_ai_response(prompt: str) -> str:
     """Generate AI response using the most appropriate method"""
     try:
         # Use the most suitable AI generation method
-        # response = response_system.generate_response(prompt, {
-        #     'tone': 'empathetic',
-        #     'style': 'supportive',
-        #     'depth': 'reflective'
-        # })
+        response = model.generate_content(prompt).text.strip()
         
-        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+        return response
     except Exception as e:
         app.logger.error(f"Error in generate_ai_response: {str(e)}")
         return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
@@ -1536,13 +1529,9 @@ def generate_ai_response(prompt: str) -> str:
     """Generate AI response using the most appropriate method"""
     try:
         # Use the most suitable AI generation method
-        # response = response_system.generate_response(prompt, {
-        #     'tone': 'empathetic',
-        #     'style': 'supportive',
-        #     'depth': 'reflective'
-        # })
+        response = model.generate_content(prompt).text.strip()
         
-        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+        return response
     except Exception as e:
         app.logger.error(f"Error in generate_ai_response: {str(e)}")
         return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
@@ -1840,7 +1829,7 @@ class LightweightNLPEngine:
             ],
             'empathetic_responses': [
                 "That must be challenging for you.",
-                "It's okay to feel the way you're feeling.",
+                "It's okay to feel the way you're feeling right now.",
                 "Your experience is unique and meaningful."
             ]
         }
@@ -2367,5 +2356,5 @@ class EfficientSessionManager:
 efficient_session_manager = EfficientSessionManager()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.getenv('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
