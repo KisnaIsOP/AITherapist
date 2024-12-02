@@ -168,6 +168,7 @@ PERSONALITY_MODES = {
 def detect_tone(message):
     """Detect the tone of the message based on keywords"""
     message_lower = message.lower()
+    
     tone_scores = {}
     
     for tone, patterns in TONE_PATTERNS.items():
@@ -1528,64 +1529,96 @@ def handle_exception(e):
 # Advanced Lightweight Conversation Intelligence
 class UltraLightConversationEngine:
     def __init__(self):
-        # Extremely memory-efficient caching
         self._cache = {
-            'recent_emotions': collections.deque(maxlen=5),
-            'interaction_patterns': collections.defaultdict(int),
-            'response_frequency': collections.defaultdict(int)
+            'context_memory': collections.deque(maxlen=5),
+            'conversation_flow': collections.defaultdict(list),
+            'emotional_context': collections.defaultdict(str)
         }
         
-        # Natural conversation responses
+        # Natural conversation patterns
+        self._conversation_patterns = {
+            'sharing': ['feel', 'think', 'believe', 'experience', 'went through'],
+            'seeking_help': ['help', 'advice', 'suggestion', 'what should', 'how do'],
+            'emotional': ['happy', 'sad', 'angry', 'scared', 'worried', 'anxious'],
+            'reflection': ['because', 'realized', 'understand', 'learned']
+        }
+        
         self._response_strategies = {
-            'greeting': [
-                "Hi! How are you today?",
-                "Hey there! How are you feeling?",
-                "Hello! How's your day going?"
+            'empathetic': [
+                "I understand what you're going through",
+                "That must be really challenging",
+                "I hear how difficult this is for you",
+                "Your feelings are completely valid"
             ],
-            'confusion': [
-                "I might have misunderstood. Let's start fresh?",
-                "Sorry if I'm not making sense. Want to start over?",
-                "Let me try to be clearer. What's on your mind?"
+            'supportive': [
+                "I'm here to support you through this",
+                "Let's work through this together",
+                "You're not alone in this",
+                "What kind of support would be most helpful right now?"
             ],
-            'acknowledgment': [
-                "I understand",
-                "Got it",
-                "I see",
-                "Makes sense"
+            'explorative': [
+                "Could you tell me more about what's on your mind?",
+                "What aspects of this situation affect you the most?",
+                "How has this been impacting you?",
+                "What thoughts come up when you think about this?"
             ],
-            'discomfort': [
-                "I notice you're uncomfortable. Would you prefer to start over?",
-                "Let's take a step back - how can I make this more comfortable?",
-                "I want you to feel comfortable. Should we try a different approach?"
+            'grounding': [
+                "Let's take a moment to focus on what you're feeling right now",
+                "What would help you feel more at ease in this moment?",
+                "Is there something specific you'd like to talk about?",
+                "We can take this one step at a time"
             ]
         }
         
-        # Track response usage to avoid repetition
+        # Track conversation context
         self._last_responses = collections.deque(maxlen=5)
+        self._emotional_context = collections.defaultdict(str)
     
-    def generate_adaptive_response(self, message: str, context: dict = None) -> str:
-        """Generate a natural, non-repetitive response"""
+    def understand_context(self, message: str) -> dict:
+        """Understand the emotional and contextual meaning of the message"""
+        context = {
+            'emotional_state': None,
+            'needs_support': False,
+            'seeking_guidance': False,
+            'sharing_experience': False
+        }
+        
         message_lower = message.lower()
         
-        # Check for user discomfort
-        discomfort_signals = ['creep', 'weird', 'cry', 'wtf', 'tf', 'what is this']
-        if any(signal in message_lower for signal in discomfort_signals):
-            return self._get_unique_response('discomfort')
+        # Detect emotional content
+        for emotion_word in self._conversation_patterns['emotional']:
+            if emotion_word in message_lower:
+                context['emotional_state'] = emotion_word
+                break
         
-        # Check for confusion
-        confusion_signals = ['what', '?', 'confused', 'understand']
-        if any(signal in message_lower for signal in confusion_signals):
-            return self._get_unique_response('confusion')
+        # Understand if user is seeking help
+        if any(pattern in message_lower for pattern in self._conversation_patterns['seeking_help']):
+            context['needs_support'] = True
         
-        # If message is very short, just acknowledge
-        if len(message.split()) <= 3:
-            return self._get_unique_response('acknowledgment')
+        # Detect if sharing personal experience
+        if any(pattern in message_lower for pattern in self._conversation_patterns['sharing']):
+            context['sharing_experience'] = True
         
-        # Default to a gentle prompt
-        return "I'm here if you'd like to talk."
+        # Track emotional context over time
+        self._cache['emotional_context'][context['emotional_state']] = time.time()
+        
+        return context
     
-    def _get_unique_response(self, response_type: str) -> str:
-        """Get a response that hasn't been used recently"""
+    def generate_adaptive_response(self, message: str, context: dict = None) -> str:
+        """Generate contextually appropriate, empathetic response"""
+        understanding = self.understand_context(message)
+        
+        # Choose response strategy based on context
+        if understanding['emotional_state']:
+            response_type = 'empathetic'
+        elif understanding['needs_support']:
+            response_type = 'supportive'
+        elif understanding['sharing_experience']:
+            response_type = 'explorative'
+        else:
+            response_type = 'grounding'
+        
+        # Get response while avoiding repetition
         available_responses = [
             r for r in self._response_strategies[response_type]
             if r not in self._last_responses
@@ -1596,16 +1629,19 @@ class UltraLightConversationEngine:
         
         response = random.choice(available_responses)
         self._last_responses.append(response)
+        
+        # Update conversation flow
+        self._cache['conversation_flow'][response_type].append(time.time())
+        
         return response
 
-# Update response generation
 def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
-    """Generate more natural responses"""
+    """Generate contextually aware and empathetic responses"""
     try:
         return ultra_light_conversation_engine.generate_adaptive_response(message, context)
     except Exception as e:
         app.logger.error(f"Response generation error: {e}")
-        return "I'm here if you'd like to talk."
+        return "I'm here to support you. Would you like to tell me more?"
 
 # Lightweight session management enhancement
 class EfficientSessionManager:
@@ -1651,6 +1687,8 @@ class EfficientSessionManager:
 
 # Initialize efficient session manager
 efficient_session_manager = EfficientSessionManager()
+
+ultra_light_conversation_engine = UltraLightConversationEngine()
 
 if __name__ == '__main__':
     config = Config()
