@@ -22,6 +22,9 @@ from cachetools import TTLCache
 from functools import wraps
 import time
 from flask_session import Session
+from quart import Quart
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 
 load_dotenv()
 
@@ -1017,7 +1020,9 @@ async def get_response():
         if not session_id:
             return jsonify({'error': 'Session ID is required'}), 400
         
-        response = await get_ai_response(message, session_id)
+        # Create an event loop for async operations
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(None, get_ai_response, message, session_id)
         
         if not response:
             return jsonify({'error': 'Failed to generate response'}), 500
@@ -1066,4 +1071,6 @@ def handle_exception(e):
     }), 500
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    config = Config()
+    config.bind = ["0.0.0.0:5000"]
+    asyncio.run(serve(app, config))
