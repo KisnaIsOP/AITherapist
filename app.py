@@ -523,19 +523,10 @@ class ResponseGenerator:
         ]
         return '_'.join(key_parts)
     
-    async def _analyze_message_async(self, message: str) -> Dict:
+    def _analyze_message(self, message: str) -> Dict:
         # Parallel pattern matching
-        tasks = []
-        for category in ['emotion', 'communication', 'personality']:
-            tasks.append(
-                asyncio.get_event_loop().run_in_executor(
-                    self.executor,
-                    self.pattern_matcher.match,
-                    message,
-                    category
-                )
-            )
-        scores = await asyncio.gather(*tasks)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            scores = list(executor.map(self.pattern_matcher.match, [message] * 3, ['emotion', 'communication', 'personality']))
         return {
             'emotion_score': scores[0],
             'communication_score': scores[1],
@@ -550,7 +541,7 @@ class ResponseGenerator:
             'analysis': analysis
         }
     
-    async def generate_response(self, message: str, session_id: str, profile: Dict) -> str:
+    def generate_response(self, message: str, session_id: str, profile: Dict) -> str:
         # Check cache first
         cache_key = self._generate_cache_key(message, profile)
         cached_response = self.cache.get(cache_key)
@@ -558,7 +549,7 @@ class ResponseGenerator:
             return cached_response
         
         # Parallel analysis
-        analysis = await self._analyze_message_async(message)
+        analysis = self._analyze_message(message)
         
         # Prepare context
         context = self._prepare_response_context(analysis, profile)
@@ -836,7 +827,7 @@ def create_enhanced_prompt(message: str, context: dict) -> str:
     return conversation_enhancer.enhance_prompt(base_prompt, enhanced_context)
 
 # Update response generation to use enhanced personality
-async def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
+def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
     """Generate response with enhanced personality while staying lightweight"""
     try:
         # Create personality-enhanced prompt
@@ -898,7 +889,7 @@ class SessionManager:
 # Initialize global session manager
 session_manager = SessionManager()
 
-async def get_ai_response(message: str, session_id: str) -> str:
+def get_ai_response(message: str, session_id: str) -> str:
     try:
         start_time = datetime.now()
         
@@ -913,7 +904,7 @@ async def get_ai_response(message: str, session_id: str) -> str:
             'emotion': session.personality_profile.emotional_pattern
         }
         
-        response = await generate_enhanced_response(message, session_id, profile)
+        response = generate_enhanced_response(message, session_id, profile)
         
         # Update metrics
         end_time = datetime.now()
@@ -1006,7 +997,7 @@ def home():
 
 @app.route('/get_response', methods=['POST'])
 @rate_limit
-async def get_response():
+def get_response():
     try:
         data = request.get_json()
         if not data:
@@ -1020,9 +1011,8 @@ async def get_response():
         if not session_id:
             return jsonify({'error': 'Session ID is required'}), 400
         
-        # Create an event loop for async operations
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(None, get_ai_response, message, session_id)
+        # Get AI response synchronously
+        response = get_ai_response(message, session_id)
         
         if not response:
             return jsonify({'error': 'Failed to generate response'}), 500
@@ -1040,7 +1030,7 @@ async def get_response():
 def cleanup_task():
     while True:
         session_manager.cleanup_old_sessions()
-        asyncio.sleep(3600)  # Run every hour
+        time.sleep(3600)  # Run every hour
 
 # Start cleanup task
 cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
@@ -1074,4 +1064,4 @@ if __name__ == '__main__':
     config = Config()
     config.bind = ["0.0.0.0:5000"]
     app.config['SECRET_KEY'] = os.urandom(24).hex()
-    asyncio.run(serve(app, config))
+    serve(app, config)
