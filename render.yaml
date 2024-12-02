@@ -22,9 +22,24 @@ services:
       value: 512
     - key: MAX_CPU_PERCENTAGE
       value: 10
+    - key: APP_URL
+      value: https://nirya-ai-therapist.onrender.com  # Replace with your actual URL
   autoDeploy: true
   healthCheckPath: /
   disk:
     name: nirya-storage
     size: 1  # GB
     mountPath: /tmp
+
+- type: worker
+  name: nirya-ping-worker
+  env: python
+  region: oregon
+  plan: free
+  buildCommand: pip install -r requirements.txt
+  startCommand: python ping.py
+  envVars:
+    - key: PYTHON_VERSION
+      value: 3.11.6
+    - key: APP_URL
+      value: https://nirya-ai-therapist.onrender.com  # Replace with your actual URL
