@@ -2050,7 +2050,5 @@ class EfficientSessionManager:
 efficient_session_manager = EfficientSessionManager()
 
 if __name__ == '__main__':
-    config = Config()
-    config.bind = ["0.0.0.0:5000"]
-    app.config['SECRET_KEY'] = os.urandom(24).hex()
-    serve(app, config)
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
