@@ -16,6 +16,8 @@ services:
       value: production
     - key: SECRET_KEY
       generateValue: true
+    - key: GOOGLE_API_KEY
+      sync: false  # This needs to be set manually in Render dashboard
     - key: MAX_MEMORY_MB
       value: 512
     - key: MAX_CPU_PERCENTAGE

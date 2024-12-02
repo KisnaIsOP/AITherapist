@@ -87,6 +87,35 @@ cp .env.example .env
 python app.py
 ```
 
+## 🚀 Deployment
+
+### Deploying to Render
+
+1. Fork this repository to your GitHub account
+2. Create a new Web Service on [Render](https://render.com)
+3. Connect your GitHub repository
+4. Configure the following settings:
+   - **Environment**: Python
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `gunicorn -c gunicorn_config.py app:app`
+
+### Environment Variables
+
+Make sure to set these environment variables in your Render dashboard:
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_API_KEY` | Your Google Gemini API key |
+| `FLASK_SECRET_KEY` | A secure random string for Flask sessions |
+| `FLASK_ENV` | Set to `production` for deployment |
+
+### Deployment Checks
+
+- Ensure all requirements are listed in `requirements.txt`
+- Check that `gunicorn_config.py` is properly configured
+- Verify that `.gitignore` excludes sensitive files
+- Test the application locally before deploying
+
 ## 🌟 Features in Detail
 
 ### 1. Conversation Intelligence
