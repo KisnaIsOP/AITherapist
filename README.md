@@ -143,6 +143,34 @@ Make sure to set these environment variables in your Render dashboard:
 - **Access Control**: Secure authentication system
 - **Rate Limiting**: Protection against abuse
 
+## ⚠️ Usage Limits
+
+### Gemini API Rate Limits
+- The free tier of Gemini API has rate limits
+- If you encounter "rate limit exceeded" error, wait for about an hour
+- Consider implementing rate limiting in your application
+- For production use, consider upgrading to a paid tier
+
+### Render Free Tier
+- Instances spin down after 15 minutes of inactivity
+- Included ping service helps keep the instance active
+- First request after inactivity may take 50+ seconds
+- For better performance, consider upgrading to a paid tier
+
+## 🔄 Keeping the Service Active
+
+### Ping Service
+The project includes a ping service (`ping.py`) that helps prevent the Render instance from spinning down:
+- Sends periodic requests every 14 minutes
+- Runs as a separate worker service on Render
+- Configured automatically through `render.yaml`
+- Helps maintain faster response times
+
+### Environment Variables for Ping Service
+| Variable | Description |
+|----------|-------------|
+| `APP_URL` | Your Render application URL |
+
 ## 🤝 Best Practices for Interaction
 
 1. **Be Open**: Share your thoughts naturally
