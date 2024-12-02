@@ -992,7 +992,19 @@ def admin_logout():
 def home():
     if 'conversation_history' not in session:
         session['conversation_history'] = []
-        return render_template('index.html', initial_question=random.choice(["I'm here to listen and support you. What brings you here today?", "Before we begin, how are you feeling right now? Take your time to share.", "I'd love to understand what's been going on for you lately. What would you like to explore?", "Thank you for reaching out. What's been on your mind that you'd like to discuss?"]))
+        INITIAL_CONVERSATION_STARTERS = [
+            "Life can be quite a journey. I'm sensing there might be something on your mind today. Would you like to share what's been going on?",
+            "Every conversation is a chance to understand a bit more about ourselves. What's been weighing on your heart recently?",
+            "Sometimes the simplest questions can lead to the most profound conversations. How are you truly feeling right now?",
+            "I'm here, ready to listen without judgment. What thoughts or emotions have been swirling around for you lately?",
+            "Your experiences are unique and valuable. I'm curious to hear what's been happening in your world recently.",
+            "Mental health is a journey, and every step matters. What would you like to explore or discuss today?",
+            "Our minds are complex landscapes. What part of your inner world would you like to navigate together today?",
+            "Life doesn't come with a manual, but sometimes talking helps. What's been on your mind recently?",
+            "Each conversation is an opportunity for growth and understanding. What would you like to share today?",
+            "Your feelings are valid, and your story matters. What would you like to talk about?"
+        ]
+        return render_template('index.html', initial_question=random.choice(INITIAL_CONVERSATION_STARTERS))
     return render_template('index.html')
 
 @app.route('/get_response', methods=['POST'])
