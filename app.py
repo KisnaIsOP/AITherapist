@@ -830,20 +830,323 @@ def create_enhanced_prompt(message: str, context: dict) -> str:
 def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
     """Generate response with enhanced personality while staying lightweight"""
     try:
+        # Analyze the emotional tone and content of the message
+        message_tone = detect_tone(message)
+        
+        # If the message is very short or seems like a minimal response
+        if len(message.split()) <= 3:
+            # Choose a gentle, non-intrusive follow-up
+            return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
+        
         # Create personality-enhanced prompt
         prompt = create_enhanced_prompt(message, context)
         
-        # Get AI response
-        response = model.generate_content(prompt).text.strip()
-        
-        # Update conversation depth
-        conversation_enhancer.conversation_depth = conversation_enhancer.analyze_depth(message)
+        # Use the AI to generate a response
+        response = generate_ai_response(prompt)
         
         return response
-        
     except Exception as e:
-        print(f"Error in enhanced response generation: {str(e)}")
-        return "I'm here to listen and support you. Could you please share that with me again?"
+        app.logger.error(f"Error in generate_enhanced_response: {str(e)}")
+        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+
+def generate_ai_response(prompt: str) -> str:
+    """Generate AI response using the most appropriate method"""
+    try:
+        # Use the most suitable AI generation method
+        response = response_system.generate_response(prompt, {
+            'tone': 'empathetic',
+            'style': 'supportive',
+            'depth': 'reflective'
+        })
+        
+        return response
+    except Exception as e:
+        app.logger.error(f"Error in generate_ai_response: {str(e)}")
+        return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
+
+# Enhanced personality and behavioral patterns
+PERSONALITY_ASPECTS = {
+    'empathy_patterns': {
+        'understanding': [
+            'that must be difficult',
+            'I understand how you feel',
+            'it sounds challenging',
+            'I hear you',
+            'that makes sense'
+        ],
+        'validation': [
+            'your feelings are valid',
+            'it\'s normal to feel this way',
+            'anyone would feel the same',
+            'you have every right to feel'
+        ],
+        'support': [
+            'I\'m here for you',
+            'you\'re not alone',
+            'we can work through this',
+            'let\'s explore this together'
+        ]
+    },
+    'conversation_enhancers': {
+        'follow_up_questions': [
+            'can you tell me more about that?',
+            'how did that make you feel?',
+            'what do you think about that?',
+            'what happened next?'
+        ],
+        'active_listening': [
+            'if I understand correctly',
+            'what I\'m hearing is',
+            'it seems like',
+            'correct me if I\'m wrong'
+        ],
+        'encouragement': [
+            'you\'re making progress',
+            'that\'s a great observation',
+            'you\'re very insightful',
+            'you\'re handling this well'
+        ]
+    },
+    'memory_triggers': {
+        'personal_details': [
+            'family',
+            'work',
+            'hobbies',
+            'dreams',
+            'fears',
+            'achievements'
+        ],
+        'emotional_events': [
+            'happy moments',
+            'challenges',
+            'changes',
+            'relationships',
+            'decisions'
+        ],
+        'future_goals': [
+            'plans',
+            'aspirations',
+            'improvements',
+            'learning',
+            'growth'
+        ]
+    }
+}
+
+# Lightweight emotional intelligence system
+EMOTIONAL_INTELLIGENCE = {
+    'comfort_responses': {
+        'anxiety': [
+            'Let\'s take a moment to breathe together',
+            'It\'s okay to feel anxious, I\'m here with you',
+            'Would you like to talk about what\'s making you anxious?'
+        ],
+        'sadness': [
+            'I hear the pain in your words',
+            'It\'s okay to not be okay sometimes',
+            'Take your time to express your feelings'
+        ],
+        'frustration': [
+            'I understand your frustration',
+            'Let\'s break this down together',
+            'Your feelings are completely valid'
+        ],
+        'overwhelm': [
+            'Let\'s take this one step at a time',
+            'You don\'t have to handle everything at once',
+            'What\'s the most pressing thing on your mind?'
+        ]
+    },
+    'growth_prompts': {
+        'self_reflection': [
+            'What have you learned from this experience?',
+            'How has this changed your perspective?',
+            'What would you do differently next time?'
+        ],
+        'empowerment': [
+            'You have the strength to handle this',
+            'Every step forward matters, no matter how small',
+            'Your resilience is admirable'
+        ],
+        'insight': [
+            'I notice you\'ve mentioned this before',
+            'This seems to be a recurring theme',
+            'How does this connect to what we discussed earlier?'
+        ]
+    }
+}
+
+# Memory-efficient conversation enhancement
+class ConversationEnhancer:
+    def __init__(self):
+        self.current_topic = None
+        self.emotional_state = 'neutral'
+        self.conversation_depth = 0
+        self.key_points = []
+    
+    def analyze_depth(self, message: str) -> int:
+        """Analyze conversation depth without heavy computation"""
+        depth = 0
+        if any(trigger in message.lower() for trigger in ['because', 'think', 'feel', 'believe']):
+            depth += 1
+        if any(trigger in message.lower() for trigger in ['childhood', 'always', 'never', 'pattern']):
+            depth += 1
+        if '?' in message:
+            depth += 1
+        return min(depth, 3)  # Cap at 3 for memory efficiency
+    
+    def get_appropriate_response_style(self, message: str, emotional_state: str) -> dict:
+        """Get contextually appropriate response patterns"""
+        if emotional_state in ['anxious', 'overwhelmed']:
+            return {
+                'tone': 'gentle',
+                'pace': 'slow',
+                'complexity': 'simple'
+            }
+        if emotional_state in ['sad', 'hurt']:
+            return {
+                'tone': 'warm',
+                'pace': 'patient',
+                'complexity': 'moderate'
+            }
+        if emotional_state in ['excited', 'happy']:
+            return {
+                'tone': 'upbeat',
+                'pace': 'matched',
+                'complexity': 'engaging'
+            }
+        return {
+            'tone': 'balanced',
+            'pace': 'moderate',
+            'complexity': 'adaptive'
+        }
+    
+    def enhance_prompt(self, base_prompt: str, context: dict) -> str:
+        """Add human-like elements to the prompt"""
+        style = self.get_appropriate_response_style(
+            context.get('message', ''),
+            context.get('emotional_state', 'neutral')
+        )
+        
+        enhancements = f"""
+        Response Style:
+        - Tone: {style['tone']}
+        - Pace: {style['pace']}
+        - Complexity: {style['complexity']}
+        
+        Remember to:
+        1. Show genuine understanding
+        2. Use natural language
+        3. Share relevant insights
+        4. Be supportively present
+        5. Maintain conversation flow
+        
+        If appropriate, include:
+        - Gentle validation
+        - Thoughtful questions
+        - Personal observations
+        - Connection to past topics
+        """
+        
+        return f"{base_prompt}\n{enhancements}"
+
+# Initialize conversation enhancer
+conversation_enhancer = ConversationEnhancer()
+
+def enhance_ai_personality(message: str, context: dict) -> dict:
+    """Add human-like personality traits to response context"""
+    depth = conversation_enhancer.analyze_depth(message)
+    
+    # Select appropriate conversation elements
+    if depth > 2:
+        elements = {
+            'empathy': random.choice(PERSONALITY_ASPECTS['empathy_patterns']['understanding']),
+            'listening': random.choice(PERSONALITY_ASPECTS['conversation_enhancers']['active_listening']),
+            'insight': random.choice(EMOTIONAL_INTELLIGENCE['growth_prompts']['insight'])
+        }
+    else:
+        elements = {
+            'support': random.choice(PERSONALITY_ASPECTS['empathy_patterns']['support']),
+            'question': random.choice(PERSONALITY_ASPECTS['conversation_enhancers']['follow_up_questions']),
+            'encourage': random.choice(PERSONALITY_ASPECTS['conversation_enhancers']['encouragement'])
+        }
+    
+    # Update context with personality elements
+    context.update({
+        'conversation_depth': depth,
+        'personality_elements': elements,
+        'response_style': conversation_enhancer.get_appropriate_response_style(
+            message,
+            context.get('emotional_state', 'neutral')
+        )
+    })
+    
+    return context
+
+# Update the prompt creation to include personality enhancements
+def create_enhanced_prompt(message: str, context: dict) -> str:
+    """Create a more human-like prompt with personality"""
+    enhanced_context = enhance_ai_personality(message, context)
+    base_prompt = f"""You are Nirya, a deeply empathetic and understanding AI companion.
+
+    Current Context:
+    - Emotional State: {enhanced_context.get('emotional_state', 'neutral')}
+    - Conversation Depth: {enhanced_context.get('conversation_depth', 0)}
+    - Style: {enhanced_context['response_style']['tone']}
+
+    Personality Elements to Include:
+    {enhanced_context['personality_elements']}
+
+    Remember to be:
+    1. Genuinely caring and present
+    2. Naturally conversational
+    3. Insightful but humble
+    4. Supportive without overstepping
+    5. Responsive to emotional needs
+
+    User Message: {message}
+
+    Respond with empathy and understanding:"""
+    
+    return conversation_enhancer.enhance_prompt(base_prompt, enhanced_context)
+
+# Update response generation to use enhanced personality
+def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
+    """Generate response with enhanced personality while staying lightweight"""
+    try:
+        # Analyze the emotional tone and content of the message
+        message_tone = detect_tone(message)
+        
+        # If the message is very short or seems like a minimal response
+        if len(message.split()) <= 3:
+            # Choose a gentle, non-intrusive follow-up
+            return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
+        
+        # Create personality-enhanced prompt
+        prompt = create_enhanced_prompt(message, context)
+        
+        # Use the AI to generate a response
+        response = generate_ai_response(prompt)
+        
+        return response
+    except Exception as e:
+        app.logger.error(f"Error in generate_enhanced_response: {str(e)}")
+        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+
+def generate_ai_response(prompt: str) -> str:
+    """Generate AI response using the most appropriate method"""
+    try:
+        # Use the most suitable AI generation method
+        response = response_system.generate_response(prompt, {
+            'tone': 'empathetic',
+            'style': 'supportive',
+            'depth': 'reflective'
+        })
+        
+        return response
+    except Exception as e:
+        app.logger.error(f"Error in generate_ai_response: {str(e)}")
+        return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
 
 # Initialize global response system
 response_system = ResponseGenerator()
@@ -992,19 +1295,31 @@ def admin_logout():
 def home():
     if 'conversation_history' not in session:
         session['conversation_history'] = []
-        INITIAL_CONVERSATION_STARTERS = [
-            "Life can be quite a journey. I'm sensing there might be something on your mind today. Would you like to share what's been going on?",
-            "Every conversation is a chance to understand a bit more about ourselves. What's been weighing on your heart recently?",
-            "Sometimes the simplest questions can lead to the most profound conversations. How are you truly feeling right now?",
-            "I'm here, ready to listen without judgment. What thoughts or emotions have been swirling around for you lately?",
-            "Your experiences are unique and valuable. I'm curious to hear what's been happening in your world recently.",
-            "Mental health is a journey, and every step matters. What would you like to explore or discuss today?",
-            "Our minds are complex landscapes. What part of your inner world would you like to navigate together today?",
-            "Life doesn't come with a manual, but sometimes talking helps. What's been on your mind recently?",
-            "Each conversation is an opportunity for growth and understanding. What would you like to share today?",
-            "Your feelings are valid, and your story matters. What would you like to talk about?"
+        INITIAL_CONVERSATION_EMPATHY = [
+            "I sense there's something brewing beneath the surface. I'm here, ready to listen whenever you feel comfortable sharing.",
+            "Sometimes, words aren't necessary. I'm here, present and attentive to whatever you might be experiencing.",
+            "Your presence speaks volumes. I'm here to support you, no pressure to say anything specific.",
+            "Feeling low can be a heavy experience. I'm here, creating a safe space for whatever you're going through.",
+            "There's strength in simply being. I'm here, offering a compassionate presence.",
+            "Emotions have their own language. I'm listening, not just to your words, but to what remains unspoken.",
+            "The weight of feelings can be overwhelming. I'm here, holding space for your experience without judgment.",
+            "Every emotion is valid. You don't need to explain or justify what you're feeling right now.",
+            "Silence can be healing. I'm here, supporting you in whatever way feels right for you.",
+            "Your emotional journey is unique. I'm here, ready to walk alongside you at your own pace."
         ]
-        return render_template('index.html', initial_question=random.choice(INITIAL_CONVERSATION_STARTERS))
+        GENTLE_FOLLOW_UP_RESPONSES = [
+            "I hear you. Your feelings are valid, and it's okay to experience them.",
+            "Thank you for sharing. Your experience matters.",
+            "I'm here, listening with compassion.",
+            "Your emotions are important, and you're not alone in this.",
+            "I appreciate you opening up and sharing a bit of your world.",
+            "What you're feeling is real and significant.",
+            "Your vulnerability takes courage. I'm here to support you.",
+            "Every emotion has its own wisdom. I'm here to understand.",
+            "It's okay to feel what you're feeling right now.",
+            "Your experience is unique, and I'm here to listen without judgment."
+        ]
+        return render_template('index.html', initial_question=random.choice(INITIAL_CONVERSATION_EMPATHY))
     return render_template('index.html')
 
 @app.route('/get_response', methods=['POST'])
