@@ -39,7 +39,7 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)
 app.config['SESSION_FILE_THRESHOLD'] = 100
 app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
-app.config['ASYNC_MODE'] = 'gevent'
+app.config['ASYNC_MODE'] = 'threading'
 
 # Ensure session directory exists
 os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
@@ -51,7 +51,7 @@ Session(app)
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode='gevent',
+    async_mode='threading',
     ping_timeout=30,
     ping_interval=25,
     path='/socket.io',

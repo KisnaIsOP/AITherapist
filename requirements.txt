@@ -8,6 +8,8 @@ flask-session==0.8.0
 quart==0.19.4
 flask-socketio==5.3.6
 cachetools==5.3.2
+python-socketio[client]==5.10.2
+python-engineio[client]==4.8.0
 
 # Minimal testing requirements
 pytest==7.4.3
