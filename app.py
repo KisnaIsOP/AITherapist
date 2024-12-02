@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from datetime import datetime
-import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -62,10 +61,10 @@ socketio = SocketIO(
 
 # Configure Gemini AI
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-genai.configure(api_key=GOOGLE_API_KEY)
+# genai.configure(api_key=GOOGLE_API_KEY)  # Commented out
 
 # Initialize Gemini AI model
-model = genai.GenerativeModel('gemini-pro')
+# model = genai.GenerativeModel('gemini-pro')  # Commented out
 
 # Store chat history in memory (limit to last 25 chats for better memory usage)
 MAX_CHAT_HISTORY = 25
@@ -562,13 +561,13 @@ class ResponseGenerator:
         self.context_manager.add_context(session_id, context)
         
         # Generate response using Gemini
-        response = model.generate_content(self._create_prompt(message, context)).text.strip()
+        # response = model.generate_content(self._create_prompt(message, context)).text.strip()
         
         # Cache the response
-        self.cache.set(cache_key, response)
+        # self.cache.set(cache_key, response)
         
-        return response
-    
+        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+
     def _create_prompt(self, message: str, context: Dict) -> str:
         return f"""You are Nirya, an empathetic AI companion.
 
@@ -926,13 +925,13 @@ def generate_ai_response(prompt: str) -> str:
     """Generate AI response using the most appropriate method"""
     try:
         # Use the most suitable AI generation method
-        response = response_system.generate_response(prompt, {
-            'tone': 'empathetic',
-            'style': 'supportive',
-            'depth': 'reflective'
-        })
+        # response = response_system.generate_response(prompt, {
+        #     'tone': 'empathetic',
+        #     'style': 'supportive',
+        #     'depth': 'reflective'
+        # })
         
-        return response
+        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
     except Exception as e:
         app.logger.error(f"Error in generate_ai_response: {str(e)}")
         return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
@@ -1235,13 +1234,13 @@ def generate_ai_response(prompt: str) -> str:
     """Generate AI response using the most appropriate method"""
     try:
         # Use the most suitable AI generation method
-        response = response_system.generate_response(prompt, {
-            'tone': 'empathetic',
-            'style': 'supportive',
-            'depth': 'reflective'
-        })
+        # response = response_system.generate_response(prompt, {
+        #     'tone': 'empathetic',
+        #     'style': 'supportive',
+        #     'depth': 'reflective'
+        # })
         
-        return response
+        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
     except Exception as e:
         app.logger.error(f"Error in generate_ai_response: {str(e)}")
         return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
@@ -1292,7 +1291,7 @@ def generate_natural_response(message: str, context: dict) -> str:
     return random.choice(RESPONSE_VARIABILITY['acknowledgment_styles'])
 
 # Initialize global response system
-response_system = ResponseGenerator()
+# response_system = ResponseGenerator()
 
 class UserSession:
     def __init__(self, session_id: str):
