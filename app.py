@@ -699,6 +699,48 @@ class ConversationEnhancer:
         self.emotional_state = 'neutral'
         self.conversation_depth = 0
         self.key_points = []
+        self.conversation_history = []  # Lightweight history tracking
+        self.last_interaction_timestamp = time.time()
+    
+    def add_to_history(self, message: str):
+        """Add message to lightweight conversation history"""
+        # Keep only last 3 messages to save memory
+        self.conversation_history.append(message)
+        if len(self.conversation_history) > 3:
+            self.conversation_history.pop(0)
+    
+    def detect_conversation_pattern(self, message: str) -> str:
+        """Detect subtle conversation patterns without heavy computation"""
+        # Quick pattern recognition
+        patterns = {
+            'avoidance': ['idk', 'not sure', 'whatever', 'maybe'],
+            'curiosity': ['why', 'how', 'what do you think'],
+            'emotional_signal': ['feel', 'think', 'wonder']
+        }
+        
+        message_lower = message.lower()
+        for pattern, keywords in patterns.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return pattern
+        
+        return 'neutral'
+    
+    def estimate_response_urgency(self, message: str) -> float:
+        """Estimate how quickly we should respond based on message content"""
+        # Quick urgency estimation
+        urgency_keywords = {
+            'high': ['help', 'urgent', 'need', 'emergency', 'worried', 'scared'],
+            'medium': ['confused', 'unsure', 'problem', 'issue'],
+            'low': ['just', 'wondering', 'curious', 'maybe']
+        }
+        
+        message_lower = message.lower()
+        
+        for level, keywords in urgency_keywords.items():
+            if any(keyword in message_lower for keyword in keywords):
+                return {'high': 1.0, 'medium': 0.5, 'low': 0.1}[level]
+        
+        return 0.3  # Default moderate urgency
     
     def analyze_depth(self, message: str) -> int:
         """Analyze conversation depth without heavy computation"""
@@ -830,13 +872,38 @@ def create_enhanced_prompt(message: str, context: dict) -> str:
 def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
     """Generate response with enhanced personality while staying lightweight"""
     try:
+        # Clean and normalize the message
+        message = message.strip().lower()
+        
+        # Define minimal response patterns
+        minimal_responses = ['', 'hey', 'hi', 'hello', 'ohh', 'ok', 'okay', 'k']
+        
+        # Handle minimal or empty responses
+        if message in minimal_responses or len(message.split()) <= 2:
+            # If it's the first minimal response, provide a gentle acknowledgment
+            if not session.get('minimal_response_count', 0):
+                session['minimal_response_count'] = 1
+                return "I sense you might be processing something. It's okay to take your time."
+            
+            # If multiple minimal responses, reduce frequency of replies
+            session['minimal_response_count'] = session.get('minimal_response_count', 0) + 1
+            
+            # After 2-3 minimal responses, become more passive
+            if session['minimal_response_count'] <= 3:
+                return random.choice([
+                    "I'm here whenever you feel ready to talk.",
+                    "Sometimes silence speaks volumes. I'm listening.",
+                    "Take all the time you need. I'm not going anywhere."
+                ])
+            
+            # After multiple minimal responses, become very minimal
+            return ""
+        
+        # Reset minimal response counter if a meaningful message is sent
+        session['minimal_response_count'] = 0
+        
         # Analyze the emotional tone and content of the message
         message_tone = detect_tone(message)
-        
-        # If the message is very short or seems like a minimal response
-        if len(message.split()) <= 3:
-            # Choose a gentle, non-intrusive follow-up
-            return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
         
         # Create personality-enhanced prompt
         prompt = create_enhanced_prompt(message, context)
@@ -1114,13 +1181,38 @@ def create_enhanced_prompt(message: str, context: dict) -> str:
 def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
     """Generate response with enhanced personality while staying lightweight"""
     try:
+        # Clean and normalize the message
+        message = message.strip().lower()
+        
+        # Define minimal response patterns
+        minimal_responses = ['', 'hey', 'hi', 'hello', 'ohh', 'ok', 'okay', 'k']
+        
+        # Handle minimal or empty responses
+        if message in minimal_responses or len(message.split()) <= 2:
+            # If it's the first minimal response, provide a gentle acknowledgment
+            if not session.get('minimal_response_count', 0):
+                session['minimal_response_count'] = 1
+                return "I sense you might be processing something. It's okay to take your time."
+            
+            # If multiple minimal responses, reduce frequency of replies
+            session['minimal_response_count'] = session.get('minimal_response_count', 0) + 1
+            
+            # After 2-3 minimal responses, become more passive
+            if session['minimal_response_count'] <= 3:
+                return random.choice([
+                    "I'm here whenever you feel ready to talk.",
+                    "Sometimes silence speaks volumes. I'm listening.",
+                    "Take all the time you need. I'm not going anywhere."
+                ])
+            
+            # After multiple minimal responses, become very minimal
+            return ""
+        
+        # Reset minimal response counter if a meaningful message is sent
+        session['minimal_response_count'] = 0
+        
         # Analyze the emotional tone and content of the message
         message_tone = detect_tone(message)
-        
-        # If the message is very short or seems like a minimal response
-        if len(message.split()) <= 3:
-            # Choose a gentle, non-intrusive follow-up
-            return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
         
         # Create personality-enhanced prompt
         prompt = create_enhanced_prompt(message, context)
@@ -1147,6 +1239,51 @@ def generate_ai_response(prompt: str) -> str:
     except Exception as e:
         app.logger.error(f"Error in generate_ai_response: {str(e)}")
         return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
+
+# Lightweight Response Variability System
+RESPONSE_VARIABILITY = {
+    'acknowledgment_styles': [
+        "I hear you.",
+        "Got it.",
+        "Understood.",
+        "Noted.",
+        "I'm listening.",
+        "Okay.",
+    ],
+    'minimal_response_styles': [
+        "Take your time.",
+        "No rush.",
+        "I'm here when you're ready.",
+        "Whenever you want to talk.",
+        "Whenever you feel comfortable.",
+        "I'm right here.",
+    ],
+    'curiosity_prompts': [
+        "Something on your mind?",
+        "Anything you'd like to share?",
+        "Feeling okay?",
+        "How are you doing?",
+        "Want to talk about it?",
+    ]
+}
+
+def generate_natural_response(message: str, context: dict) -> str:
+    """Generate a natural, lightweight response"""
+    # Detect conversation pattern
+    pattern = conversation_enhancer.detect_conversation_pattern(message)
+    
+    # Estimate response urgency
+    urgency = conversation_enhancer.estimate_response_urgency(message)
+    
+    # Select response based on pattern and urgency
+    if pattern == 'avoidance':
+        return random.choice(RESPONSE_VARIABILITY['minimal_response_styles'])
+    
+    if pattern == 'curiosity':
+        return random.choice(RESPONSE_VARIABILITY['curiosity_prompts'])
+    
+    # Default natural acknowledgment
+    return random.choice(RESPONSE_VARIABILITY['acknowledgment_styles'])
 
 # Initialize global response system
 response_system = ResponseGenerator()
@@ -1386,6 +1523,246 @@ def handle_exception(e):
         'error': 'An unexpected error occurred',
         'message': str(e)
     }), 500
+
+# Advanced Lightweight Conversation Intelligence
+class UltraLightConversationEngine:
+    def __init__(self):
+        # Extremely memory-efficient caching
+        self._cache = {
+            'recent_emotions': collections.deque(maxlen=5),
+            'interaction_patterns': collections.defaultdict(int),
+            'response_frequency': collections.defaultdict(int)
+        }
+        
+        # Compact linguistic pattern recognition
+        self._linguistic_patterns = {
+            'questioning': ['?', 'how', 'why', 'what', 'when', 'where', 'which'],
+            'expressing_emotion': ['feel', 'think', 'believe', 'wonder', 'hope'],
+            'seeking_support': ['help', 'need', 'support', 'struggling', 'difficult'],
+            'neutral_statements': ['just', 'okay', 'fine', 'alright']
+        }
+        
+        # Lightweight sentiment mapping
+        self._sentiment_map = {
+            'positive': ['good', 'great', 'happy', 'awesome', 'nice', 'love', 'enjoy', 'wonderful'],
+            'negative': ['sad', 'bad', 'upset', 'angry', 'frustrated', 'worried', 'stress', 'difficult'],
+            'neutral': ['okay', 'fine', 'alright', 'meh', 'whatever', 'just']
+        }
+        
+        # Compact response strategies
+        self._response_strategies = {
+            'empathetic': [
+                "I understand.",
+                "That sounds meaningful.",
+                "I hear you.",
+                "Your feelings matter."
+            ],
+            'supportive': [
+                "You're not alone.",
+                "I'm here for you.",
+                "We'll get through this.",
+                "Your strength is impressive."
+            ],
+            'reflective': [
+                "Tell me more.",
+                "What's on your mind?",
+                "How are you processing this?",
+                "I'm listening carefully."
+            ]
+        }
+    
+    def analyze_message_complexity(self, message: str) -> float:
+        """
+        Quickly estimate message complexity with minimal computation
+        
+        Args:
+            message (str): User's message
+        
+        Returns:
+            float: Complexity score (0-1)
+        """
+        # Use simple heuristics for complexity
+        words = message.split()
+        complexity = min(1.0, 
+            (len(words) * 0.1) +  # Word count impact
+            (len(set(words)) * 0.05) +  # Unique word diversity
+            (sum(1 for word in words if len(word) > 5) * 0.1)  # Complex word presence
+        )
+        return round(complexity, 2)
+    
+    def detect_communication_intent(self, message: str) -> str:
+        """
+        Rapidly detect communication intent with minimal processing
+        
+        Args:
+            message (str): User's message
+        
+        Returns:
+            str: Detected communication intent
+        """
+        message_lower = message.lower()
+        
+        # Quick intent detection with minimal iteration
+        intent_scores = {
+            'questioning': sum(1 for marker in self._linguistic_patterns['questioning'] if marker in message_lower),
+            'emotional_expression': sum(1 for marker in self._linguistic_patterns['expressing_emotion'] if marker in message_lower),
+            'support_seeking': sum(1 for marker in self._linguistic_patterns['seeking_support'] if marker in message_lower)
+        }
+        
+        # Return top intent
+        return max(intent_scores, key=intent_scores.get)
+    
+    def generate_adaptive_response(self, message: str, context: dict = None) -> str:
+        """
+        Generate a highly adaptive response with minimal computational overhead
+        
+        Args:
+            message (str): User's message
+            context (dict, optional): Conversation context
+        
+        Returns:
+            str: Adaptive response
+        """
+        # Detect sentiment with O(1) complexity
+        sentiment = next(
+            (sent for sent, keywords in self._sentiment_map.items() 
+             if any(keyword in message.lower() for keyword in keywords)),
+            'neutral'
+        )
+        
+        # Detect communication intent
+        intent = self.detect_communication_intent(message)
+        
+        # Complexity analysis
+        complexity = self.analyze_message_complexity(message)
+        
+        # Response strategy selection
+        response_type = {
+            'questioning': 'reflective',
+            'emotional_expression': 'empathetic',
+            'support_seeking': 'supportive'
+        }.get(intent, 'reflective')
+        
+        # Adaptive response generation
+        if complexity > 0.7:
+            # More detailed response for complex messages
+            return random.choice(self._response_strategies[response_type])
+        elif sentiment == 'negative':
+            # Supportive response for negative sentiment
+            return "I'm here to support you through this."
+        else:
+            # Quick, light response
+            return random.choice([
+                "I'm listening.",
+                "Go on.",
+                "I hear you.",
+                "Tell me more."
+            ])
+    
+    def track_conversation_dynamics(self, message: str):
+        """
+        Lightweight conversation dynamics tracking
+        
+        Args:
+            message (str): User's message
+        
+        Returns:
+            dict: Conversation dynamics insights
+        """
+        # Update interaction patterns
+        intent = self.detect_communication_intent(message)
+        self._cache['interaction_patterns'][intent] += 1
+        
+        # Compute basic conversation insights
+        dynamics = {
+            'dominant_intent': max(
+                self._cache['interaction_patterns'], 
+                key=self._cache['interaction_patterns'].get
+            ),
+            'message_complexity': self.analyze_message_complexity(message)
+        }
+        
+        return dynamics
+
+# Initialize ultra-lightweight conversation engine
+ultra_light_conversation_engine = UltraLightConversationEngine()
+
+# Enhanced response generation with ultra-lightweight intelligence
+def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
+    """
+    Generate enhanced response with extreme computational efficiency
+    
+    Args:
+        message (str): User's message
+        session_id (str): Unique session identifier
+        context (dict): Conversation context
+    
+    Returns:
+        str: Enhanced, contextually appropriate response
+    """
+    try:
+        # Track conversation dynamics with minimal overhead
+        conversation_dynamics = ultra_light_conversation_engine.track_conversation_dynamics(message)
+        
+        # Generate adaptive response
+        response = ultra_light_conversation_engine.generate_adaptive_response(message, context)
+        
+        # Additional lightweight personalization
+        if conversation_dynamics['message_complexity'] > 0.5:
+            # Slightly more engaged response for complex messages
+            response += " I'm paying close attention."
+        
+        return response
+    
+    except Exception as e:
+        # Ultralight fallback mechanism
+        app.logger.error(f"Ultra-lightweight response generation error: {e}")
+        return "I'm here."
+
+# Lightweight session management enhancement
+class EfficientSessionManager:
+    def __init__(self, max_sessions=100):
+        self._sessions = {}
+        self._max_sessions = max_sessions
+        self._last_accessed = collections.OrderedDict()
+    
+    def create_session(self, session_id: str):
+        """
+        Create a new session with minimal overhead
+        
+        Args:
+            session_id (str): Unique session identifier
+        """
+        if len(self._sessions) >= self._max_sessions:
+            # Remove least recently used session
+            oldest_session_id, _ = self._last_accessed.popitem(last=False)
+            del self._sessions[oldest_session_id]
+        
+        # Create lightweight session
+        self._sessions[session_id] = {
+            'created_at': time.time(),
+            'interaction_count': 0,
+            'last_active': time.time()
+        }
+        self._last_accessed[session_id] = time.time()
+    
+    def update_session(self, session_id: str):
+        """
+        Update session with minimal computational cost
+        
+        Args:
+            session_id (str): Unique session identifier
+        """
+        if session_id in self._sessions:
+            session = self._sessions[session_id]
+            session['interaction_count'] += 1
+            session['last_active'] = time.time()
+            
+            # Update access order
+            self._last_accessed[session_id] = time.time()
+
+# Initialize efficient session manager
+efficient_session_manager = EfficientSessionManager()
 
 if __name__ == '__main__':
     config = Config()
