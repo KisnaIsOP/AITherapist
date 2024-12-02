@@ -71,6 +71,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Enhanced context detection for better emoji placement
     function addEmojisToResponse(response) {
+        // Check if response is undefined, null, or not a string
+        if (!response || typeof response !== 'string') {
+            return response || ''; // Return empty string if response is invalid
+        }
+
         const lowerResponse = response.toLowerCase();
         let enhancedResponse = response;
         
@@ -199,36 +204,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({ 
                     message: message,
-                    session_id: sessionId
+                    session_id: sessionId 
                 })
             });
 
-            const data = await response.json();
-            
-            if (data.error) {
-                addMessage("I apologize, but I'm having trouble responding right now. Please try again.", false);
-            } else {
-                const enhancedResponse = addEmojisToResponse(data.response);
-                addMessage(enhancedResponse, false);
-
-                // Check if response contains engagement prompts
-                if (data.response.includes('journal') || data.response.includes('write down')) {
-                    showJournalSection();
-                } else if (data.response.includes('grateful') || data.response.includes('thankful')) {
-                    showGratitudeSection();
-                } else if (data.response.includes('breathing') || data.response.includes('mindful')) {
-                    showMindfulnessTimer();
-                }
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
+            const data = await response.json();
+            const aiResponse = data.response || 'I apologize, but I could not generate a response.';
+            
+            const enhancedResponse = addEmojisToResponse(aiResponse);
+            addMessage(enhancedResponse, false);
         } catch (error) {
             console.error('Error:', error);
-            addMessage("I apologize, but I'm having trouble responding right now. Please try again.", false);
+            addMessage('Sorry, there was an error processing your message. Please try again.', false);
         } finally {
             // Re-enable input and button
             userInput.disabled = false;
             sendButton.disabled = false;
-            userInput.focus();
         }
     }
 
