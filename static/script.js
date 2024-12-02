@@ -209,17 +209,38 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                console.error('Server error:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
             }
 
             const data = await response.json();
+            
+            if (!data || !data.response) {
+                console.warn('Received empty or invalid response', data);
+                throw new Error('No valid response from server');
+            }
+
             const aiResponse = data.response || 'I apologize, but I could not generate a response.';
             
             const enhancedResponse = addEmojisToResponse(aiResponse);
             addMessage(enhancedResponse, false);
         } catch (error) {
-            console.error('Error:', error);
-            addMessage('Sorry, there was an error processing your message. Please try again.', false);
+            console.error('Detailed Error:', {
+                message: error.message,
+                stack: error.stack,
+                userMessage: message,
+                sessionId: sessionId
+            });
+            
+            // More informative error message
+            const errorMessages = [
+                'Sorry, there was an unexpected issue. Our team has been notified.',
+                'Communication hiccup! Could you try your message again?',
+                'Oops! Seems like our AI is taking a brief meditation break. Retry?'
+            ];
+            
+            addMessage(errorMessages[Math.floor(Math.random() * errorMessages.length)], false);
         } finally {
             // Re-enable input and button
             userInput.disabled = false;

@@ -875,6 +875,308 @@ def create_enhanced_prompt(message: str, context: dict) -> str:
 
 # Update response generation to use enhanced personality
 def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
+    """
+    Generate enhanced, context-aware response
+    
+    Args:
+        message (str): User's message
+        session_id (str): Current session ID
+        context (dict): Conversation context
+    
+    Returns:
+        str: Enhanced response
+    """
+    try:
+        # Validate input
+        if not message or not isinstance(message, str):
+            app.logger.warning(f"Invalid message received: {message}")
+            return "I'm having trouble understanding your message. Could you rephrase?"
+
+        # Use lightweight NLP for response generation
+        response = lightweight_nlp_engine.generate_contextual_response(message)
+        
+        # Validate response
+        if not response:
+            app.logger.error(f"Empty response generated for message: {message}")
+            return "I'm here to listen. Would you like to share more?"
+        
+        # Update privacy manager session
+        privacy_manager.update_session(session_id, 'text_interaction')
+        
+        return response
+    
+    except Exception as e:
+        # Comprehensive error logging
+        app.logger.error(f"Response generation error: {e}")
+        app.logger.error(f"Message details: {message}")
+        app.logger.error(f"Session ID: {session_id}")
+        app.logger.error(f"Context: {context}")
+        
+        return "I apologize, but I'm experiencing some difficulties right now. Could you please try again?"
+
+def generate_ai_response(prompt: str) -> str:
+    """Generate AI response using the most appropriate method"""
+    try:
+        # Use the most suitable AI generation method
+        # response = response_system.generate_response(prompt, {
+        #     'tone': 'empathetic',
+        #     'style': 'supportive',
+        #     'depth': 'reflective'
+        # })
+        
+        return "I'm here for you. Sometimes words are hard to find, but I'm listening."
+    except Exception as e:
+        app.logger.error(f"Error in generate_ai_response: {str(e)}")
+        return random.choice(GENTLE_FOLLOW_UP_RESPONSES)
+
+# Enhanced personality and behavioral patterns
+PERSONALITY_ASPECTS = {
+    'empathy_patterns': {
+        'understanding': [
+            'that must be difficult',
+            'I understand how you feel',
+            'it sounds challenging',
+            'I hear you',
+            'that makes sense'
+        ],
+        'validation': [
+            'your feelings are valid',
+            'it\'s normal to feel this way',
+            'anyone would feel the same',
+            'you have every right to feel'
+        ],
+        'support': [
+            'I\'m here for you',
+            'you\'re not alone',
+            'we can work through this',
+            'let\'s explore this together'
+        ]
+    },
+    'conversation_enhancers': {
+        'follow_up_questions': [
+            'can you tell me more about that?',
+            'how did that make you feel?',
+            'what do you think about that?',
+            'what happened next?'
+        ],
+        'active_listening': [
+            'if I understand correctly',
+            'what I\'m hearing is',
+            'it seems like',
+            'correct me if I\'m wrong'
+        ],
+        'encouragement': [
+            'you\'re making progress',
+            'that\'s a great observation',
+            'you\'re very insightful',
+            'you\'re handling this well'
+        ]
+    },
+    'memory_triggers': {
+        'personal_details': [
+            'family',
+            'work',
+            'hobbies',
+            'dreams',
+            'fears',
+            'achievements'
+        ],
+        'emotional_events': [
+            'happy moments',
+            'challenges',
+            'changes',
+            'relationships',
+            'decisions'
+        ],
+        'future_goals': [
+            'plans',
+            'aspirations',
+            'improvements',
+            'learning',
+            'growth'
+        ]
+    }
+}
+
+# Lightweight emotional intelligence system
+EMOTIONAL_INTELLIGENCE = {
+    'comfort_responses': {
+        'anxiety': [
+            'Let\'s take a moment to breathe together',
+            'It\'s okay to feel anxious, I\'m here with you',
+            'Would you like to talk about what\'s making you anxious?'
+        ],
+        'sadness': [
+            'I hear the pain in your words',
+            'It\'s okay to not be okay sometimes',
+            'Take your time to express your feelings'
+        ],
+        'frustration': [
+            'I understand your frustration',
+            'Let\'s break this down together',
+            'Your feelings are completely valid'
+        ],
+        'overwhelm': [
+            'Let\'s take this one step at a time',
+            'You don\'t have to handle everything at once',
+            'What\'s the most pressing thing on your mind?'
+        ]
+    },
+    'growth_prompts': {
+        'self_reflection': [
+            'What have you learned from this experience?',
+            'How has this changed your perspective?',
+            'What would you do differently next time?'
+        ],
+        'empowerment': [
+            'You have the strength to handle this',
+            'Every step forward matters, no matter how small',
+            'Your resilience is admirable'
+        ],
+        'insight': [
+            'I notice you\'ve mentioned this before',
+            'This seems to be a recurring theme',
+            'How does this connect to what we discussed earlier?'
+        ]
+    }
+}
+
+# Memory-efficient conversation enhancement
+class ConversationEnhancer:
+    def __init__(self):
+        self.current_topic = None
+        self.emotional_state = 'neutral'
+        self.conversation_depth = 0
+        self.key_points = []
+    
+    def analyze_depth(self, message: str) -> int:
+        """Analyze conversation depth without heavy computation"""
+        depth = 0
+        if any(trigger in message.lower() for trigger in ['because', 'think', 'feel', 'believe']):
+            depth += 1
+        if any(trigger in message.lower() for trigger in ['childhood', 'always', 'never', 'pattern']):
+            depth += 1
+        if '?' in message:
+            depth += 1
+        return min(depth, 3)  # Cap at 3 for memory efficiency
+    
+    def get_appropriate_response_style(self, message: str, emotional_state: str) -> dict:
+        """Get contextually appropriate response patterns"""
+        if emotional_state in ['anxious', 'overwhelmed']:
+            return {
+                'tone': 'gentle',
+                'pace': 'slow',
+                'complexity': 'simple'
+            }
+        if emotional_state in ['sad', 'hurt']:
+            return {
+                'tone': 'warm',
+                'pace': 'patient',
+                'complexity': 'moderate'
+            }
+        if emotional_state in ['excited', 'happy']:
+            return {
+                'tone': 'upbeat',
+                'pace': 'matched',
+                'complexity': 'engaging'
+            }
+        return {
+            'tone': 'balanced',
+            'pace': 'moderate',
+            'complexity': 'adaptive'
+        }
+    
+    def enhance_prompt(self, base_prompt: str, context: dict) -> str:
+        """Add human-like elements to the prompt"""
+        style = self.get_appropriate_response_style(
+            context.get('message', ''),
+            context.get('emotional_state', 'neutral')
+        )
+        
+        enhancements = f"""
+        Response Style:
+        - Tone: {style['tone']}
+        - Pace: {style['pace']}
+        - Complexity: {style['complexity']}
+        
+        Remember to:
+        1. Show genuine understanding
+        2. Use natural language
+        3. Share relevant insights
+        4. Be supportively present
+        5. Maintain conversation flow
+        
+        If appropriate, include:
+        - Gentle validation
+        - Thoughtful questions
+        - Personal observations
+        - Connection to past topics
+        """
+        
+        return f"{base_prompt}\n{enhancements}"
+
+# Initialize conversation enhancer
+conversation_enhancer = ConversationEnhancer()
+
+def enhance_ai_personality(message: str, context: dict) -> dict:
+    """Add human-like personality traits to response context"""
+    depth = conversation_enhancer.analyze_depth(message)
+    
+    # Select appropriate conversation elements
+    if depth > 2:
+        elements = {
+            'empathy': random.choice(PERSONALITY_ASPECTS['empathy_patterns']['understanding']),
+            'listening': random.choice(PERSONALITY_ASPECTS['conversation_enhancers']['active_listening']),
+            'insight': random.choice(EMOTIONAL_INTELLIGENCE['growth_prompts']['insight'])
+        }
+    else:
+        elements = {
+            'support': random.choice(PERSONALITY_ASPECTS['empathy_patterns']['support']),
+            'question': random.choice(PERSONALITY_ASPECTS['conversation_enhancers']['follow_up_questions']),
+            'encourage': random.choice(PERSONALITY_ASPECTS['conversation_enhancers']['encouragement'])
+        }
+    
+    # Update context with personality elements
+    context.update({
+        'conversation_depth': depth,
+        'personality_elements': elements,
+        'response_style': conversation_enhancer.get_appropriate_response_style(
+            message,
+            context.get('emotional_state', 'neutral')
+        )
+    })
+    
+    return context
+
+# Update the prompt creation to include personality enhancements
+def create_enhanced_prompt(message: str, context: dict) -> str:
+    """Create a more human-like prompt with personality"""
+    enhanced_context = enhance_ai_personality(message, context)
+    base_prompt = f"""You are Nirya, a deeply empathetic and understanding AI companion.
+
+    Current Context:
+    - Emotional State: {enhanced_context.get('emotional_state', 'neutral')}
+    - Conversation Depth: {enhanced_context.get('conversation_depth', 0)}
+    - Style: {enhanced_context['response_style']['tone']}
+
+    Personality Elements to Include:
+    {enhanced_context['personality_elements']}
+
+    Remember to be:
+    1. Genuinely caring and present
+    2. Naturally conversational
+    3. Insightful but humble
+    4. Supportive without overstepping
+    5. Responsive to emotional needs
+
+    User Message: {message}
+
+    Respond with empathy and understanding:"""
+    
+    return conversation_enhancer.enhance_prompt(base_prompt, enhanced_context)
+
+# Update response generation to use enhanced personality
+def generate_enhanced_response(message: str, session_id: str, context: dict) -> str:
     """Generate response with enhanced personality while staying lightweight"""
     try:
         # Clean and normalize the message
@@ -1671,8 +1973,18 @@ def generate_enhanced_response(message: str, session_id: str, context: dict) -> 
         str: Enhanced response
     """
     try:
+        # Validate input
+        if not message or not isinstance(message, str):
+            app.logger.warning(f"Invalid message received: {message}")
+            return "I'm having trouble understanding your message. Could you rephrase?"
+
         # Use lightweight NLP for response generation
         response = lightweight_nlp_engine.generate_contextual_response(message)
+        
+        # Validate response
+        if not response:
+            app.logger.error(f"Empty response generated for message: {message}")
+            return "I'm here to listen. Would you like to share more?"
         
         # Update privacy manager session
         privacy_manager.update_session(session_id, 'text_interaction')
@@ -1680,8 +1992,13 @@ def generate_enhanced_response(message: str, session_id: str, context: dict) -> 
         return response
     
     except Exception as e:
+        # Comprehensive error logging
         app.logger.error(f"Response generation error: {e}")
-        return "I'm here to listen. Would you like to share more?"
+        app.logger.error(f"Message details: {message}")
+        app.logger.error(f"Session ID: {session_id}")
+        app.logger.error(f"Context: {context}")
+        
+        return "I apologize, but I'm experiencing some difficulties right now. Could you please try again?"
 
 # Modify get_response route to use new NLP engine
 @app.route('/get_response', methods=['POST'])
