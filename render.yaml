@@ -24,6 +24,8 @@ services:
       value: 10
     - key: APP_URL
       value: https://nirya-ai-therapist.onrender.com  # Replace with your actual URL
+    - key: PORT
+      value: 10000
   autoDeploy: true
   healthCheckPath: /
   disk:
@@ -42,4 +44,4 @@ services:
     - key: PYTHON_VERSION
       value: 3.11.6
     - key: APP_URL
-      value: https://nirya-ai-therapist.onrender.com  # Replace with your actual URL
+      value: https://aitherapist.onrender.com  # Replace with your actual URL
